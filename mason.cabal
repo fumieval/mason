@@ -1,0 +1,27 @@
+cabal-version:       2.4
+
+name:                mason
+version:             0
+synopsis:            Fast and extensible bytestring builder
+description:         See README.md
+bug-reports:         https://github.com/fumieval/mason/issues
+license:             BSD-3-Clause
+license-file:        LICENSE
+author:              Fumiaki Kinoshita
+maintainer:          fumiexcel@gmail.com
+copyright:           2019 Fumiaki Kinoshita
+category:            Data
+extra-source-files:  CHANGELOG.md
+
+library
+  exposed-modules:
+    Mason.Builder
+    Mason.Builder.Internal
+
+  -- other-modules:
+  -- other-extensions:
+  ghc-options: -Wall -O2
+  build-depends:       base >= 4.12.0.0, bytestring, text, network, integer-gmp
+    , ghc-prim
+  hs-source-dirs: src
+  default-language:    Haskell2010
