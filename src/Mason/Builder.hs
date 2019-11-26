@@ -70,6 +70,8 @@ module Mason.Builder
   , doubleHexFixed
   , byteStringHex
   , lazyByteStringHex
+  , primFixed
+  , primBounded
   ) where
 
 import Control.Monad
