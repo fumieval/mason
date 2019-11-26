@@ -10,7 +10,9 @@ module Mason.Builder
   , toLazyByteString
   , hPutBuilderLen
   , hPutBuilder
+  , sendBuilder
   -- * Raw
+  , flush
   , encodeUtf8Builder
   , encodeUtf8BuilderEscaped
   , byteString

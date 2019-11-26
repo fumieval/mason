@@ -73,7 +73,7 @@ newtype BuilderFor s = Builder { unBuilder :: s -> Buffer -> IO Buffer }
 
 class Buildable s where
   byteString :: B.ByteString -> BuilderFor s
-  -- | Flush the content of the buffer.
+  -- | Flush the content of the internal buffer.
   flush :: BuilderFor s
   -- | Allocate a buffer with at least the given length.
   allocate :: Int -> BuilderFor s
@@ -271,6 +271,8 @@ instance Buildable PutBuilderEnv where
   {-# INLINE allocate #-}
 
 -- | Write a 'Builder' into a handle and obtain the number of bytes written.
+-- 'flush' does not imply actual disk operations. Set 'NoBuffering' if you want
+-- it to write the content immediately.
 hPutBuilderLen :: Handle -> BuilderFor PutBuilderEnv -> IO Int
 hPutBuilderLen h b = do
   let initialSize = 4096
