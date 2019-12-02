@@ -171,10 +171,12 @@ instance Buildable GrowingBuffer where
   {-# INLINE flush #-}
   allocate len = Builder $ \(GrowingBuffer bufferRef) (Buffer total _ dst) -> do
     fptr0 <- readIORef bufferRef
-    let pos = dst `minusPtr` unsafeForeignPtrToPtr fptr0
-    let size' = pos + max len pos
+    let ptr0 = unsafeForeignPtrToPtr fptr0
+    let !pos = dst `minusPtr` ptr0
+    let !size' = pos + max len pos
     fptr <- mallocForeignPtrBytes size'
     let !dst' = unsafeForeignPtrToPtr fptr
+    B.memcpy dst' ptr0 pos
     writeIORef bufferRef fptr
     return $ Buffer total (dst' `plusPtr` size') (dst' `plusPtr` pos)
   {-# INLINE allocate #-}
