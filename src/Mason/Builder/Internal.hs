@@ -80,36 +80,35 @@ class Buildable s where
   allocate :: Int -> BuilderFor s
 
 data Buffer = Buffer
-  { bCount :: {-# UNPACK #-} !Int
-  , bEnd :: {-# UNPACK #-} !(Ptr Word8)
+  { bEnd :: {-# UNPACK #-} !(Ptr Word8)
   , bCur :: {-# UNPACK #-} !(Ptr Word8)
   }
 
 byteStringCopy :: Buildable s => B.ByteString -> BuilderFor s
-byteStringCopy = \(B.PS fsrc ofs len) -> ensure len $ \(Buffer total end ptr) -> do
+byteStringCopy = \(B.PS fsrc ofs len) -> ensure len $ \(Buffer end ptr) -> do
   withForeignPtr fsrc $ \src -> B.memcpy ptr (src `plusPtr` ofs) len
-  return $ Buffer total end (ptr `plusPtr` len)
+  return $ Buffer end (ptr `plusPtr` len)
 {-# INLINE byteStringCopy #-}
 
 poke :: Buildable s => Poke -> BuilderFor s
 poke (Poke len run) = ensure len
-  $ \(Buffer total end dst) -> Buffer total end <$> run dst
+  $ \(Buffer end dst) -> Buffer end <$> run dst
 {-# INLINE[1] poke #-}
 
 {-# RULES "<>/poke" forall a b. poke a <> poke b = poke (a <> b) #-}
 
 shortByteString :: SB.ShortByteString -> Builder
-shortByteString = \src -> let len = SB.length src in ensure len $ \(Buffer total end ptr) ->
-  Buffer (total + len) end (ptr `plusPtr` len)
+shortByteString = \src -> let len = SB.length src in ensure len $ \(Buffer end ptr) ->
+  Buffer end (ptr `plusPtr` len)
   <$ SB.copyToPtr src 0 ptr len
 {-# INLINE shortByteString #-}
 
 -- | Ensure that the given number of bytes is available in the buffer.
 ensure :: Int -> (Buffer -> IO Buffer) -> Builder
-ensure mlen cont = Builder $ \env buf@(Buffer _ end ptr) ->
+ensure mlen cont = Builder $ \env buf@(Buffer end ptr) ->
   if ptr `plusPtr` mlen >= end
     then do
-      buf'@(Buffer _ end' ptr') <- unBuilder flush env buf
+      buf'@(Buffer end' ptr') <- unBuilder flush env buf
       if mlen <= minusPtr end' ptr'
         then cont buf'
         else unBuilder (allocate mlen) env buf' >>= cont
@@ -122,14 +121,13 @@ ensure mlen cont = Builder $ \env buf@(Buffer _ end ptr) ->
 lengthPrefixedWithin :: Int -- ^ maximum length
   -> B.BoundedPrim Int -- ^ prefix encoder
   -> BuilderFor () -> Builder
-lengthPrefixedWithin maxLen bp builder = ensure (B.sizeBound bp + maxLen) $ \(Buffer total end origin) -> do
+lengthPrefixedWithin maxLen bp builder = ensure (B.sizeBound bp + maxLen) $ \(Buffer end origin) -> do
   let base = origin `plusPtr` B.sizeBound bp
-  Buffer _ _ base' <- unBuilder builder () (Buffer total end base)
+  Buffer _ base' <- unBuilder builder () (Buffer end base)
   let len = minusPtr base' base
   newBase <- B.runB bp len origin
   c_memmove newBase base len
-  let plen = minusPtr newBase origin
-  return $ Buffer (total + plen + len) end (newBase `plusPtr` len)
+  return $ Buffer end (newBase `plusPtr` len)
 {-# INLINE lengthPrefixedWithin #-}
 
 -- | Work with a constant buffer. 'allocate' will always fail.
@@ -196,7 +194,7 @@ instance Buildable GrowingBuffer where
   {-# INLINE byteString #-}
   flush = mempty
   {-# INLINE flush #-}
-  allocate len = Builder $ \(GrowingBuffer bufferRef) (Buffer total _ dst) -> do
+  allocate len = Builder $ \(GrowingBuffer bufferRef) (Buffer _ dst) -> do
     fptr0 <- readIORef bufferRef
     let ptr0 = unsafeForeignPtrToPtr fptr0
     let !pos = dst `minusPtr` ptr0
@@ -205,7 +203,7 @@ instance Buildable GrowingBuffer where
     let !dst' = unsafeForeignPtrToPtr fptr
     B.memcpy dst' ptr0 pos
     writeIORef bufferRef fptr
-    return $ Buffer total (dst' `plusPtr` size') (dst' `plusPtr` pos)
+    return $ Buffer (dst' `plusPtr` size') (dst' `plusPtr` pos)
   {-# INLINE allocate #-}
 
 toStrictByteString :: BuilderFor GrowingBuffer -> B.ByteString
@@ -214,8 +212,8 @@ toStrictByteString b = unsafePerformIO $ do
   bufferRef <- newIORef fptr0
   let ptr0 = unsafeForeignPtrToPtr fptr0
 
-  Buffer _ _ pos <- unBuilder b (GrowingBuffer bufferRef)
-    $ Buffer 0 (ptr0 `plusPtr` initialSize) ptr0
+  Buffer _ pos <- unBuilder b (GrowingBuffer bufferRef)
+    $ Buffer (ptr0 `plusPtr` initialSize) ptr0
 
   fptr <- readIORef bufferRef
   pure $ B.PS fptr 0 (pos `minusPtr` unsafeForeignPtrToPtr fptr)
@@ -234,11 +232,11 @@ instance Buildable Channel where
     | B.length bs < 4096 = byteStringCopy bs
     | otherwise = flush <> Builder (\(Channel v _) b -> b <$ putMVar v bs)
   {-# INLINE byteString #-}
-  flush = Builder $ \(Channel v ref) (Buffer total end ptr) -> do
+  flush = Builder $ \(Channel v ref) (Buffer end ptr) -> do
     ptr0 <- unsafeForeignPtrToPtr <$> readIORef ref
     let len = minusPtr ptr ptr0
     when (len > 0) $ putMVar v $! B.unsafeCreate len $ \dst -> B.memcpy dst ptr0 len
-    return $! Buffer (total + len) end ptr0
+    return $! Buffer end ptr0
   {-# INLINE flush #-}
   allocate = allocateConstant chBuffer
   {-# INLINE allocate #-}
@@ -255,7 +253,7 @@ toLazyByteString body = unsafePerformIO $ do
   let final (Left e) = throw e
       final (Right _) = putMVar resp B.empty
   _ <- flip forkFinally final $ unBuilder (body <> flush) (Channel resp ref)
-    $ Buffer 0 (ptr `plusPtr` initialSize) ptr
+    $ Buffer (ptr `plusPtr` initialSize) ptr
 
   let go _ = unsafePerformIO $ do
         bs <- takeMVar resp
@@ -268,32 +266,34 @@ toLazyByteString body = unsafePerformIO $ do
 data PutBuilderEnv = PBE
   { pbHandle :: !Handle
   , pbBuffer :: !(IORef (ForeignPtr Word8))
+  , pbTotal :: !(IORef Int)
   }
 
 -- | Allocate a new buffer.
 allocateConstant :: (s -> IORef (ForeignPtr Word8)) -> Int -> BuilderFor s
-allocateConstant f len = Builder $ \env (Buffer total _ _) -> do
+allocateConstant f len = Builder $ \env (Buffer _ _) -> do
   fptr <- mallocForeignPtrBytes len
   writeIORef (f env) fptr
   let ptr1 = unsafeForeignPtrToPtr fptr
-  return $! Buffer total (ptr1 `plusPtr` len) ptr1
+  return $! Buffer (ptr1 `plusPtr` len) ptr1
 {-# INLINE allocateConstant #-}
 
 instance Buildable PutBuilderEnv where
   byteString bs
-    | len > 4096 = mappend flush $ Builder $ \(PBE h _) (Buffer total end ptr) -> do
+    | len > 4096 = mappend flush $ Builder $ \(PBE h _ _) buf -> do
       B.hPut h bs
-      return $! Buffer (total + len) end ptr
+      return buf
     | otherwise = byteStringCopy bs
     where
       len = B.length bs
   {-# INLINE byteString #-}
 
-  flush = Builder $ \(PBE h ref) (Buffer total end ptr) -> do
+  flush = Builder $ \(PBE h ref counter) (Buffer end ptr) -> do
     ptr0 <- unsafeForeignPtrToPtr <$> readIORef ref
     let len = minusPtr ptr ptr0
+    modifyIORef' counter (+len)
     hPutBuf h ptr0 len
-    return $! Buffer (total + len) end ptr0
+    return $! Buffer end ptr0
   {-# INLINE flush #-}
 
   allocate = allocateConstant pbBuffer
@@ -308,13 +308,15 @@ hPutBuilderLen h b = do
   fptr <- mallocForeignPtrBytes initialSize
   ref <- newIORef fptr
   let ptr = unsafeForeignPtrToPtr fptr
-  Buffer total _ _ <- unBuilder (b <> flush) (PBE h ref) (Buffer 0 (ptr `plusPtr` initialSize) ptr)
-  return total
+  counter <- newIORef 0
+  _ <- unBuilder (b <> flush) (PBE h ref counter) (Buffer (ptr `plusPtr` initialSize) ptr)
+  readIORef counter
 {-# INLINE hPutBuilderLen #-}
 
 data SocketEnv = SE
   { seSocket :: !S.Socket
   , seBuffer :: !(IORef (ForeignPtr Word8))
+  , seCounter :: !(IORef Int)
   }
 
 sendBufRange :: S.Socket -> Ptr Word8 -> Ptr Word8 -> IO ()
@@ -328,18 +330,19 @@ sendBufRange sock ptr0 ptr1 = go ptr0 where
 
 instance Buildable SocketEnv where
   byteString bs
-    | len > 4096 = mappend flush $ Builder $ \(SE sock _) (Buffer total end ptr) -> do
+    | len > 4096 = mappend flush $ Builder $ \(SE sock _ _) (Buffer end ptr) -> do
       S.sendAll sock bs
-      return $! Buffer total end ptr
+      return $! Buffer end ptr
     | otherwise = byteStringCopy bs
     where
       len = B.length bs
   {-# INLINE byteString #-}
 
-  flush = Builder $ \(SE sock ref) (Buffer total end ptr1) -> do
+  flush = Builder $ \(SE sock ref counter) (Buffer end ptr1) -> do
     ptr0 <- unsafeForeignPtrToPtr <$> readIORef ref
     sendBufRange sock ptr0 ptr1
-    return $! Buffer (total + minusPtr ptr1 ptr0) end ptr0
+    modifyIORef' counter (+minusPtr ptr1 ptr0)
+    return $! Buffer end ptr0
   {-# INLINE flush #-}
 
   allocate = allocateConstant seBuffer
@@ -351,8 +354,9 @@ sendBuilder sock b = do
   fptr <- mallocForeignPtrBytes initialSize
   ref <- newIORef fptr
   let ptr = unsafeForeignPtrToPtr fptr
-  Buffer total _ _ <- unBuilder (b <> flush) (SE sock ref) (Buffer 0 (ptr `plusPtr` initialSize) ptr)
-  return total
+  counter <- newIORef 0
+  _ <- unBuilder (b <> flush) (SE sock ref counter) (Buffer (ptr `plusPtr` initialSize) ptr)
+  readIORef counter
 {-# INLINE sendBuilder #-}
 
 {-# INLINE encodeUtf8BuilderEscaped #-}
@@ -363,7 +367,7 @@ encodeUtf8BuilderEscaped be = mkBuildstep where
   mkBuildstep (T.Text arr off len) = Builder $ outerLoop off where
     iend = off + len
 
-    outerLoop !i0 env !br@(Buffer total ope op0)
+    outerLoop !i0 env !br@(Buffer ope op0)
       | i0 >= iend       = return br
       | outRemaining > 0 = goPartial (i0 + min outRemaining inpRemaining)
       -- TODO: Use a loop with an integrated bound's check if outRemaining
@@ -396,7 +400,7 @@ encodeUtf8BuilderEscaped be = mkBuildstep where
                         poke8 2 $ (w .&. 0x3F) + 0x80
                         go (i + 1) (op `plusPtr` 3)
               | otherwise =
-                  outerLoop i env (Buffer (total + minusPtr op op0) ope op)
+                  outerLoop i env (Buffer ope op)
               where
                 poke8 :: Integral a => Int -> a -> IO ()
                 poke8 j v = S.poke (op `plusPtr` j) (fromIntegral v :: Word8)
