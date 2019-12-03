@@ -12,6 +12,7 @@ module Mason.Builder.Internal (Builder
   , Channel(..)
   , toLazyByteString
   , stringUtf8
+  , lengthPrefixedWithin
   , primBounded
   , primFixed
   , primMapListFixed
@@ -87,7 +88,7 @@ data Buffer = Buffer
 byteStringCopy :: Buildable s => B.ByteString -> BuilderFor s
 byteStringCopy = \(B.PS fsrc ofs len) -> ensure len $ \(Buffer total end ptr) -> do
   withForeignPtr fsrc $ \src -> B.memcpy ptr (src `plusPtr` ofs) len
-  return $! Buffer total end (ptr `plusPtr` len)
+  return $ Buffer total end (ptr `plusPtr` len)
 {-# INLINE byteStringCopy #-}
 
 poke :: Buildable s => Poke -> BuilderFor s
@@ -103,16 +104,42 @@ shortByteString = \src -> let len = SB.length src in ensure len $ \(Buffer total
   <$ SB.copyToPtr src 0 ptr len
 {-# INLINE shortByteString #-}
 
+-- | Ensure that the given number of bytes is available in the buffer.
 ensure :: Int -> (Buffer -> IO Buffer) -> Builder
-ensure mlen cont = Builder $ \env buf@(Buffer total end ptr) ->
+ensure mlen cont = Builder $ \env buf@(Buffer _ end ptr) ->
   if ptr `plusPtr` mlen >= end
     then do
       buf'@(Buffer _ end' ptr') <- unBuilder flush env buf
       if mlen <= minusPtr end' ptr'
         then cont buf'
         else unBuilder (allocate mlen) env buf' >>= cont
-    else cont (Buffer total end ptr)
-{-# INLINE ensure #-}
+    else cont buf
+{-# INLINE[1] ensure #-}
+
+{-# RULES "<>/ensure" forall m n f g. ensure m f <> ensure n g = ensure (m + n) (f >=> g) #-}
+
+-- | Run a builder within a buffer and prefix by the length.
+lengthPrefixedWithin :: Int -- ^ maximum length
+  -> B.BoundedPrim Int -- ^ prefix encoder
+  -> BuilderFor () -> Builder
+lengthPrefixedWithin maxLen bp builder = ensure (B.sizeBound bp + maxLen) $ \(Buffer total end origin) -> do
+  let base = origin `plusPtr` B.sizeBound bp
+  Buffer _ _ base' <- unBuilder builder () (Buffer total end base)
+  let len = minusPtr base' base
+  newBase <- B.runB bp len origin
+  c_memmove newBase base len
+  let plen = minusPtr newBase origin
+  return $ Buffer (total + plen + len) end (newBase `plusPtr` len)
+{-# INLINE lengthPrefixedWithin #-}
+
+-- | Work with a constant buffer. 'allocate' will always fail.
+instance Buildable () where
+  byteString = byteStringCopy
+  {-# INLINE byteString #-}
+  flush = mempty
+  {-# INLINE flush #-}
+  allocate _ = Builder $ \_ _ -> fail "Mason.Builder.Internal.allocate: can't allocate"
+  {-# INLINE allocate #-}
 
 instance Semigroup (BuilderFor s) where
   Builder f <> Builder g = Builder $ \e -> f e >=> g e
@@ -373,3 +400,6 @@ encodeUtf8BuilderEscaped be = mkBuildstep where
               where
                 poke8 :: Integral a => Int -> a -> IO ()
                 poke8 j v = S.poke (op `plusPtr` j) (fromIntegral v :: Word8)
+
+foreign import ccall unsafe "memmove"
+    c_memmove :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
