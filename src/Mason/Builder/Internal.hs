@@ -29,10 +29,6 @@ module Mason.Builder.Internal (Builder
   , cstring
   , cstringUtf8
   -- * Internal
-  , Poke(..)
-  , poke
-  , pokeBoundedPrim
-  , pokeFixedPrim
   , ensure
   , allocateConstant
   , grisu3
@@ -72,14 +68,6 @@ import GHC.Ptr (Ptr(..))
 import GHC.Word (Word8(..))
 import GHC.Types (isTrue#)
 import GHC.Base (unpackCString#, unpackCStringUtf8#, unpackFoldrCString#, build)
-data Poke = Poke {-# UNPACK #-} !Int (Ptr Word8 -> IO (Ptr Word8))
-
-instance Semigroup Poke where
-  Poke m f <> Poke n g = Poke (m + n) (f >=> g)
-  {-# INLINE[1] (<>) #-}
-
-instance Monoid Poke where
-  mempty = Poke 0 pure
 
 type Builder = forall s. Buildable s => BuilderFor s
 
@@ -102,13 +90,6 @@ byteStringCopy = \(B.PS fsrc ofs len) -> ensure len $ \(Buffer end ptr) -> do
   withForeignPtr fsrc $ \src -> B.memcpy ptr (src `plusPtr` ofs) len
   return $ Buffer end (ptr `plusPtr` len)
 {-# INLINE byteStringCopy #-}
-
-poke :: Buildable s => Poke -> BuilderFor s
-poke (Poke len run) = ensure len
-  $ \(Buffer end dst) -> Buffer end <$> run dst
-{-# INLINE[1] poke #-}
-
-{-# RULES "<>/poke" forall a b. poke a <> poke b = poke (a <> b) #-}
 
 shortByteString :: SB.ShortByteString -> Builder
 shortByteString = \src -> let len = SB.length src in ensure len $ \(Buffer end ptr) ->
@@ -212,36 +193,30 @@ instance Buildable s => IsString (BuilderFor s) where
   fromString = stringUtf8
   {-# INLINE fromString #-}
 
-pokeBoundedPrim :: B.BoundedPrim a -> a -> Poke
-pokeBoundedPrim bp a = Poke (B.sizeBound bp) (B.runB bp a)
-{-# INLINE pokeBoundedPrim #-}
-
-pokeFixedPrim :: B.FixedPrim a -> a -> Poke
-pokeFixedPrim fp a = Poke (B.size fp) (\ptr -> plusPtr ptr (B.size fp) <$ B.runF fp a ptr)
-{-# INLINE pokeFixedPrim #-}
-
 primBounded :: B.BoundedPrim a -> a -> Builder
-primBounded bp a = poke $ pokeBoundedPrim bp a
+primBounded bp a = ensure (B.sizeBound bp)
+  $ \(Buffer end ptr) -> Buffer end <$> B.runB bp a ptr
 {-# INLINE primBounded #-}
 
 primFixed :: B.FixedPrim a -> a -> Builder
-primFixed fp a = poke $ pokeFixedPrim fp a
+primFixed fp a = ensure (B.size fp)
+  $ \(Buffer end ptr) -> Buffer end (ptr `plusPtr` B.size fp) <$ B.runF fp a ptr
 {-# INLINE primFixed #-}
 
 primMapListFixed :: B.FixedPrim a -> [a] -> Builder
-primMapListFixed fp = poke . foldMap (pokeFixedPrim fp)
+primMapListFixed fp = foldMap (primFixed fp)
 {-# INLINE primMapListFixed #-}
 
 primMapListBounded :: B.BoundedPrim a -> [a] -> Builder
-primMapListBounded bp = poke . foldMap (pokeBoundedPrim bp)
+primMapListBounded bp = foldMap (primBounded bp)
 {-# INLINE primMapListBounded #-}
 
 primMapByteStringFixed :: B.FixedPrim Word8 -> B.ByteString -> Builder
-primMapByteStringFixed fp = poke . B.foldr (mappend . pokeFixedPrim fp) mempty
+primMapByteStringFixed fp = B.foldr (mappend . primFixed fp) mempty
 {-# INLINE primMapByteStringFixed #-}
 
 primMapLazyByteStringFixed :: B.FixedPrim Word8 -> BL.ByteString -> Builder
-primMapLazyByteStringFixed fp = poke . BL.foldr (mappend . pokeFixedPrim fp) mempty
+primMapLazyByteStringFixed fp = BL.foldr (mappend . primFixed fp) mempty
 {-# INLINE primMapLazyByteStringFixed #-}
 
 newtype GrowingBuffer = GrowingBuffer (IORef (ForeignPtr Word8))
