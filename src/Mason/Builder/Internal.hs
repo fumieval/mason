@@ -33,6 +33,9 @@ module Mason.Builder.Internal (Builder
   , poke
   , pokeBoundedPrim
   , pokeFixedPrim
+  , ensure
+  , allocateConstant
+  , grisu3
   ) where
 
 import Control.Concurrent
@@ -49,9 +52,11 @@ import qualified Data.ByteString.Builder.Prim.Internal as B
 import Data.Text.Internal.Unsafe.Shift (shiftR)
 import Data.Text.Internal.Unsafe.Char (ord)
 import System.IO
+import Foreign.C.Types
 import Foreign.Ptr
 import Foreign.ForeignPtr.Unsafe
 import Foreign.ForeignPtr
+import Foreign.Marshal.Array (allocaArray)
 import Data.IORef
 import Data.Word (Word8)
 import Data.String
@@ -460,3 +465,20 @@ encodeUtf8BuilderEscaped be = mkBuildstep where
 
 foreign import ccall unsafe "memmove"
     c_memmove :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
+
+-- | Decimal encoding of a positive 'Double'.
+{-# INLINE grisu3 #-}
+grisu3 :: Double -> Maybe (B.ByteString, Int)
+grisu3 d = unsafeDupablePerformIO $ allocaArray 2 $ \plen -> do
+  fptr <- B.mallocByteString 18
+  let pexp = plusPtr plen (S.sizeOf (undefined :: CInt))
+  success <- withForeignPtr fptr $ \ptr -> c_grisu3 (realToFrac d) ptr plen pexp
+  if success == 0
+    then return Nothing
+    else do
+      len <- fromIntegral <$> S.peek plen
+      e <- fromIntegral <$> S.peek pexp
+      return $ Just (B.PS fptr 0 len, len + e)
+
+foreign import ccall unsafe "static grisu3"
+  c_grisu3 :: CDouble -> Ptr Word8 -> Ptr CInt -> Ptr CInt -> IO CInt

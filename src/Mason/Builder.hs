@@ -84,7 +84,7 @@ import Data.Word
 import Data.Int
 import qualified Data.Text as T
 import Foreign.C.Types
-import Foreign.Ptr (Ptr)
+import Foreign.Ptr (Ptr, plusPtr)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Mason.Builder.Internal as B
@@ -281,17 +281,28 @@ wordDec = B.primBounded P.wordDec
 -- Floating point numbers
 -------------------------
 
--- TODO: Use Bryan O'Sullivan's double-conversion package to speed it up.
-
 -- | /Currently slow./ Decimal encoding of an IEEE 'Float'.
 {-# INLINE floatDec #-}
 floatDec :: Float -> Builder
 floatDec = string7 . show
 
--- | /Currently slow./ Decimal encoding of an IEEE 'Double'.
+-- | Decimal encoding of an IEEE 'Double'.
 {-# INLINE doubleDec #-}
 doubleDec :: Double -> Builder
-doubleDec = string7 . show
+doubleDec x
+  | isNaN x = string7 "NaN"
+  | isInfinite x = if x < 0 then string7 "-Infinity" else string7 "Infinity"
+  | x < 0 = char7 '-' <> grisu (-x)
+  | isNegativeZero x = string7 "-0.0"
+  | x == 0 = string7 "0.0"
+  | otherwise = grisu x
+  where
+    grisu v = B.ensure 24 $ \(B.Buffer end ptr) -> do
+      n <- dtoa_grisu3 v ptr
+      return $ B.Buffer end $ plusPtr ptr (fromIntegral n)
+
+foreign import ccall unsafe "static dtoa_grisu3"
+  dtoa_grisu3 :: Double -> Ptr Word8 -> IO CInt
 
 ------------------------------------------------------------------------------
 -- Decimal Encoding

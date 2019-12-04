@@ -20,6 +20,7 @@ library
 
   -- other-modules:
   -- other-extensions:
+  c-sources: cbits/dtoa.c
   ghc-options: -Wall -O2
   build-depends:       base >= 4.12.0.0, bytestring, text, network, integer-gmp
     , ghc-prim
