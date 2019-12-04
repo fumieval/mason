@@ -3,9 +3,12 @@
 {-# LANGUAGE RankNTypes #-}
 module NAME
   ( fromValue
+  , toStrictByteString
   , valueToByteString
   , valueToLazyByteString
   , putValue
+  , literal
+  , doubleDec
   ) where
 
 #ifndef LIB
@@ -23,6 +26,9 @@ import System.IO (Handle)
 
 import LIB
 import HashMapExts
+
+literal :: Builder
+literal = "Haskell！Haskell！Haskell！Haskellぅぅうううわぁあああああああああん！！！あぁ…ああ…あっあっー！あぁあああ！！！HaskellHaskellHaskellぅううぁわぁああああ！！"
 
 putValue :: Handle -> Value -> IO ()
 putValue h v = hPutBuilder h $ fromValue v

@@ -15,7 +15,13 @@ main = runInUnboundThread $ withFile "bench.json" WriteMode $ \h -> do
   rnf json `seq` return ()
 
   defaultMain
-    [ bench "mason/hPutBuilder" $ nfIO (M.putValue h json)
+    [ bench "mason/double" $ nf (M.toStrictByteString . M.doubleDec) (pi * 1e6)
+    , bench "fast-builder/double" $ nf (F.toStrictByteString . F.doubleDec) (pi * 1e6)
+    , bench "bytestring/double" $ nf (B.toStrictByteString . B.doubleDec) (pi * 1e6)
+    , bench "mason/literal" $ nf M.toStrictByteString M.literal
+    , bench "fast-builder/literal" $ nf F.toStrictByteString F.literal
+    , bench "bytestring/literal" $ nf B.toStrictByteString B.literal
+    , bench "mason/hPutBuilder" $ nfIO (M.putValue h json)
     , bench "fast-builder/hPutBuilder" $ nfIO (F.putValue h json)
     , bench "bytestring/hPutBuilder" $ nfIO (B.putValue h json)
     , bench "mason/toStrictByteString" $ nf M.valueToByteString json
