@@ -94,6 +94,7 @@ import GHC.Integer.GMP.Internals
 import GHC.Types (Int(..))
 import System.IO (Handle)
 
+-- | Put the content of a 'Builder' to a 'Handle'.
 hPutBuilder :: Handle -> BuilderFor PutBuilderEnv -> IO ()
 hPutBuilder h b = void $ hPutBuilderLen h b
 {-# INLINE hPutBuilder #-}
@@ -245,6 +246,7 @@ string8 = B.primMapListFixed P.char8
 charUtf8 :: Char -> Builder
 charUtf8 = B.primBounded P.charUtf8
 
+-- | Encode 'T.Text' as a UTF-8 byte stream.
 encodeUtf8Builder :: T.Text -> Builder
 encodeUtf8Builder = B.encodeUtf8BuilderEscaped (P.liftFixedToBounded P.word8)
 {-# INLINE encodeUtf8Builder #-}

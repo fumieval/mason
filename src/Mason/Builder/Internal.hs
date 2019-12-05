@@ -69,35 +69,41 @@ import GHC.Word (Word8(..))
 import GHC.Types (isTrue#)
 import GHC.Base (unpackCString#, unpackCStringUtf8#, unpackFoldrCString#, build)
 
+-- | The Builder type. Requires RankNTypes extension
 type Builder = forall s. Buildable s => BuilderFor s
 
+-- | Builder specialised for a backend
 newtype BuilderFor s = Builder { unBuilder :: s -> Buffer -> IO Buffer }
 
 class Buildable s where
+  -- | Put a 'B.ByteString'.
   byteString :: B.ByteString -> BuilderFor s
   -- | Flush the content of the internal buffer.
   flush :: BuilderFor s
   -- | Allocate a buffer with at least the given length.
   allocate :: Int -> BuilderFor s
 
+-- | Buffer pointers
 data Buffer = Buffer
-  { bEnd :: {-# UNPACK #-} !(Ptr Word8)
-  , bCur :: {-# UNPACK #-} !(Ptr Word8)
+  { bEnd :: {-# UNPACK #-} !(Ptr Word8) -- ^ end of the buffer (next to the last byte)
+  , bCur :: {-# UNPACK #-} !(Ptr Word8) -- ^ current position
   }
 
+-- | Copy a 'B.ByteString' to a buffer.
 byteStringCopy :: Buildable s => B.ByteString -> BuilderFor s
 byteStringCopy = \(B.PS fsrc ofs len) -> ensure len $ \(Buffer end ptr) -> do
   withForeignPtr fsrc $ \src -> B.memcpy ptr (src `plusPtr` ofs) len
   return $ Buffer end (ptr `plusPtr` len)
 {-# INLINE byteStringCopy #-}
 
+-- | Copy a 'SB.ShortByteString' to a buffer.
 shortByteString :: SB.ShortByteString -> Builder
 shortByteString = \src -> let len = SB.length src in ensure len $ \(Buffer end ptr) ->
   Buffer end (ptr `plusPtr` len)
   <$ SB.copyToPtr src 0 ptr len
 {-# INLINE shortByteString #-}
 
--- | Ensure that the given number of bytes is available in the buffer.
+-- | Ensure that the given number of bytes is available in the buffer. Subject to semigroup fusions
 ensure :: Int -> (Buffer -> IO Buffer) -> Builder
 ensure mlen cont = Builder $ \env buf@(Buffer end ptr) ->
   if ptr `plusPtr` mlen >= end
@@ -111,7 +117,7 @@ ensure mlen cont = Builder $ \env buf@(Buffer end ptr) ->
 
 {-# RULES "<>/ensure" forall m n f g. ensure m f <> ensure n g = ensure (m + n) (f >=> g) #-}
 
--- | Run a builder within a buffer and prefix by the length.
+-- | Run a builder within a buffer and prefix it by the length.
 lengthPrefixedWithin :: Int -- ^ maximum length
   -> B.BoundedPrim Int -- ^ prefix encoder
   -> BuilderFor () -> Builder
