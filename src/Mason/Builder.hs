@@ -20,13 +20,14 @@ module Mason.Builder
   , hPutBuilderLen
   , hPutBuilder
   , sendBuilder
-  -- * Raw
+  -- * Primitives
   , flush
   , encodeUtf8Builder
   , encodeUtf8BuilderEscaped
   , byteString
   , lazyByteString
   , shortByteString
+  , storable
   , int8
   , word8
   , int16LE

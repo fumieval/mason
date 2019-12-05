@@ -29,6 +29,7 @@ module Mason.Builder.Internal (Builder
   , cstring
   , cstringUtf8
   , withPtr
+  , storable
   -- * Internal
   , ensure
   , allocateConstant
@@ -57,7 +58,7 @@ import Foreign.Marshal.Array (allocaArray)
 import Data.IORef
 import Data.Word (Word8)
 import Data.String
-import qualified Foreign.Storable as S
+import Foreign.Storable as S
 import System.IO.Unsafe
 import qualified Data.Text.Array as A
 import qualified Data.Text.Internal as T
@@ -104,9 +105,18 @@ shortByteString = \src -> let len = SB.length src in withPtr len $ \ptr ->
   plusPtr ptr len <$ SB.copyToPtr src 0 ptr len
 {-# INLINE shortByteString #-}
 
-withPtr :: Buildable s => Int -> (Ptr Word8 -> IO (Ptr Word8)) -> BuilderFor s
+-- | Construct a 'Builder' from a "poke" function.
+withPtr :: Buildable s
+  => Int -- ^ number of bytes to allocate (if needed)
+  -> (Ptr Word8 -> IO (Ptr Word8)) -- ^ return a next pointer after writing
+  -> BuilderFor s
 withPtr n f = ensure n $ \(Buffer e p) -> Buffer e <$> f p
 {-# INLINE withPtr #-}
+
+-- | Turn a 'Storable' value into a 'Builder'
+storable :: Storable a => a -> Builder
+storable a = withPtr (sizeOf a) $ \p -> plusPtr p (sizeOf a) <$ poke (castPtr p) a
+{-# INLINE storable #-}
 
 -- | Ensure that the given number of bytes is available in the buffer. Subject to semigroup fusion
 ensure :: Int -> (Buffer -> IO Buffer) -> Builder
