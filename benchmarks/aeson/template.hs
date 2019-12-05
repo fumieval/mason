@@ -45,14 +45,14 @@ fromValue = go0 where
   go (Object obj) = char8 '{' <> foldMapWithKey f obj <> char8 '}'
     where
         f k v =
-          encodeUtf8Builder' k <> char8 ':' <> go0 v
+          encodeUtf8Builder k <> char8 ':' <> go0 v
           <> char8 ','
   go (Array arr) = V.foldr f (const $ char8 ']') arr True
     where
       f x r initial =
         (if initial then char8 '[' else char8 ',')
         <> go0 x <> r False
-  go (String s) = encodeUtf8Builder' s
+  go (String s) = encodeUtf8Builder s
   go (Number n) = either doubleDec integerDec $ Sci.floatingOrInteger n
   go (Bool False) = "false"
   go (Bool True) = "true"
