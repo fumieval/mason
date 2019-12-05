@@ -15,6 +15,7 @@ maintainer:          fumiexcel@gmail.com
 -- category:
 extra-source-files:  CHANGELOG.md
 
+-- modified version of https://github.com/takano-akio/fast-builder
 benchmark aeson
   type:                exitcode-stdio-1.0
   main-is:             main.hs

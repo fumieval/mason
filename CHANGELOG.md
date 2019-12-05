@@ -1,5 +1,5 @@
 # Revision history for mason
 
-## 0.1.0.0 -- YYYY-mm-dd
+## 0 -- 2019-12-05
 
 * First version. Released on an unsuspecting world.

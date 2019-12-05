@@ -1,7 +1,7 @@
-mason
+mason: alacritous builder library
 ====
 
-mason is a string builder/IO library.
+mason is a very performant, extensible builder & IO library.
 
 The design is inspired by [fast-builder](http://hackage.haskell.org/package/fast-builder) and
 `Mason.Builder` has API mostly compatible with `Data.ByteString.Builder`.

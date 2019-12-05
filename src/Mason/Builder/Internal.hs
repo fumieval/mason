@@ -392,20 +392,18 @@ sendBuilder sock b = do
 {-# INLINE sendBuilder #-}
 
 {-# INLINE encodeUtf8BuilderEscaped #-}
--- | bos's Text Encoder
+
+-- | Encode 'T.Text' with a custom escaping function
 encodeUtf8BuilderEscaped :: B.BoundedPrim Word8 -> T.Text -> Builder
-encodeUtf8BuilderEscaped be = mkBuildstep where
+encodeUtf8BuilderEscaped be = step where
   bound = max 4 $ B.sizeBound be
 
-  mkBuildstep (T.Text arr off len) = Builder $ outerLoop off where
+  step (T.Text arr off len) = Builder $ loop off where
     iend = off + len
-
-    outerLoop !i0 env !br@(Buffer ope op0)
+    loop !i0 env !br@(Buffer ope op0)
       | i0 >= iend       = return br
       | outRemaining > 0 = goPartial (i0 + min outRemaining inpRemaining)
-      -- TODO: Use a loop with an integrated bound's check if outRemaining
-      -- is smaller than 8, as this will save on divisions.
-      | otherwise        = unBuilder (ensure bound (outerLoop i0 env)) env br
+      | otherwise        = unBuilder (ensure bound (loop i0 env)) env br
       where
         outRemaining = (ope `minusPtr` op0) `div` bound
         inpRemaining = iend - i0
@@ -432,8 +430,7 @@ encodeUtf8BuilderEscaped be = mkBuildstep where
                         poke8 1 $ ((w `shiftR` 6) .&. 0x3F) + 0x80
                         poke8 2 $ (w .&. 0x3F) + 0x80
                         go (i + 1) (op `plusPtr` 3)
-              | otherwise =
-                  outerLoop i env (Buffer ope op)
+              | otherwise = loop i env (Buffer ope op)
               where
                 poke8 :: Integral a => Int -> a -> IO ()
                 poke8 j v = S.poke (op `plusPtr` j) (fromIntegral v :: Word8)

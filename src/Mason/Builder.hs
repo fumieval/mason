@@ -462,6 +462,7 @@ maxPow10 :: Integer
 maxPow10 = toInteger $ (10 :: Int) ^ caseWordSize_32_64 (9 :: Int) 18
 
 -- | Decimal encoding of an 'Integer' using the ASCII digits.
+-- Simon Meier's improved implementation from https://github.com/haskell/bytestring/commit/92f19a5d94761042b44a433d7331107611e4d717
 integerDec :: Integer -> Builder
 integerDec (S# i#) = intDec (I# i#)
 integerDec i

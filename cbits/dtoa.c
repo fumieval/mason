@@ -1,4 +1,20 @@
-/* https://github.com/juj/MathGeoLib/blob/master/src/Math/grisu3.c */
+/*
+Copyright https://github.com/juj
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+*/
+// modified version of https://github.com/juj/MathGeoLib/blob/master/src/Math/grisu3.c
 /* This file is part of an implementation of the "grisu3" double to string
 	conversion algorithm described in the research paper
 	"Printing Floating-Point Numbers Quickly And Accurately with Integers"
