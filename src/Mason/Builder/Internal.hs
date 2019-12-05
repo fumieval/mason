@@ -28,6 +28,7 @@ module Mason.Builder.Internal (Builder
   , SocketEnv(..)
   , cstring
   , cstringUtf8
+  , withPtr
   -- * Internal
   , ensure
   , allocateConstant
@@ -92,19 +93,22 @@ data Buffer = Buffer
 
 -- | Copy a 'B.ByteString' to a buffer.
 byteStringCopy :: Buildable s => B.ByteString -> BuilderFor s
-byteStringCopy = \(B.PS fsrc ofs len) -> ensure len $ \(Buffer end ptr) -> do
+byteStringCopy = \(B.PS fsrc ofs len) -> withPtr len $ \ptr -> do
   withForeignPtr fsrc $ \src -> B.memcpy ptr (src `plusPtr` ofs) len
-  return $ Buffer end (ptr `plusPtr` len)
+  return $ ptr `plusPtr` len
 {-# INLINE byteStringCopy #-}
 
 -- | Copy a 'SB.ShortByteString' to a buffer.
 shortByteString :: SB.ShortByteString -> Builder
-shortByteString = \src -> let len = SB.length src in ensure len $ \(Buffer end ptr) ->
-  Buffer end (ptr `plusPtr` len)
-  <$ SB.copyToPtr src 0 ptr len
+shortByteString = \src -> let len = SB.length src in withPtr len $ \ptr ->
+  plusPtr ptr len <$ SB.copyToPtr src 0 ptr len
 {-# INLINE shortByteString #-}
 
--- | Ensure that the given number of bytes is available in the buffer. Subject to semigroup fusions
+withPtr :: Buildable s => Int -> (Ptr Word8 -> IO (Ptr Word8)) -> BuilderFor s
+withPtr n f = ensure n $ \(Buffer e p) -> Buffer e <$> f p
+{-# INLINE withPtr #-}
+
+-- | Ensure that the given number of bytes is available in the buffer. Subject to semigroup fusion
 ensure :: Int -> (Buffer -> IO Buffer) -> Builder
 ensure mlen cont = Builder $ \env buf@(Buffer end ptr) ->
   if ptr `plusPtr` mlen >= end
@@ -202,14 +206,12 @@ instance Buildable s => IsString (BuilderFor s) where
 
 -- | Use 'B.BoundedPrim'
 primBounded :: B.BoundedPrim a -> a -> Builder
-primBounded bp a = ensure (B.sizeBound bp)
-  $ \(Buffer end ptr) -> Buffer end <$> B.runB bp a ptr
+primBounded bp = withPtr (B.sizeBound bp) . B.runB bp
 {-# INLINE primBounded #-}
 
 -- | Use 'B.FixedPrim'
 primFixed :: B.FixedPrim a -> a -> Builder
-primFixed fp a = ensure (B.size fp)
-  $ \(Buffer end ptr) -> Buffer end (ptr `plusPtr` B.size fp) <$ B.runF fp a ptr
+primFixed fp a = withPtr (B.size fp) $ \ptr -> (ptr `plusPtr` B.size fp) <$ B.runF fp a ptr
 {-# INLINE primFixed #-}
 
 primMapListFixed :: B.FixedPrim a -> [a] -> Builder

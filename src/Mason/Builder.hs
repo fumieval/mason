@@ -309,9 +309,9 @@ doubleDec x
   | x == 0 = string7 "0.0"
   | otherwise = grisu x
   where
-    grisu v = B.ensure 24 $ \(B.Buffer end ptr) -> do
+    grisu v = withPtr 24 $ \ptr -> do
       n <- dtoa_grisu3 v ptr
-      return $ B.Buffer end $ plusPtr ptr (fromIntegral n)
+      return $ plusPtr ptr (fromIntegral n)
 
 foreign import ccall unsafe "static dtoa_grisu3"
   dtoa_grisu3 :: Double -> Ptr Word8 -> IO CInt
