@@ -75,6 +75,7 @@ type Builder = forall s. Buildable s => BuilderFor s
 -- | Builder specialised for a backend
 newtype BuilderFor s = Builder { unBuilder :: s -> Buffer -> IO Buffer }
 
+-- | This class is used to provide backend-specific operations for running a 'Builder'.
 class Buildable s where
   -- | Put a 'B.ByteString'.
   byteString :: B.ByteString -> BuilderFor s
@@ -199,11 +200,13 @@ instance Buildable s => IsString (BuilderFor s) where
   fromString = stringUtf8
   {-# INLINE fromString #-}
 
+-- | Use 'B.BoundedPrim'
 primBounded :: B.BoundedPrim a -> a -> Builder
 primBounded bp a = ensure (B.sizeBound bp)
   $ \(Buffer end ptr) -> Buffer end <$> B.runB bp a ptr
 {-# INLINE primBounded #-}
 
+-- | Use 'B.FixedPrim'
 primFixed :: B.FixedPrim a -> a -> Builder
 primFixed fp a = ensure (B.size fp)
   $ \(Buffer end ptr) -> Buffer end (ptr `plusPtr` B.size fp) <$ B.runF fp a ptr
@@ -244,6 +247,7 @@ instance Buildable GrowingBuffer where
     return $ Buffer (dst' `plusPtr` size') (dst' `plusPtr` pos)
   {-# INLINE allocate #-}
 
+-- | Create a strict 'B.ByteString'
 toStrictByteString :: BuilderFor GrowingBuffer -> B.ByteString
 toStrictByteString b = unsafePerformIO $ do
   fptr0 <- mallocForeignPtrBytes initialSize
@@ -279,6 +283,7 @@ instance Buildable Channel where
   allocate = allocateConstant chBuffer
   {-# INLINE allocate #-}
 
+-- | Create a lazy 'BL.ByteString'. Threaded runtime is required.
 toLazyByteString :: BuilderFor Channel -> BL.ByteString
 toLazyByteString body = unsafePerformIO $ do
   resp <- newEmptyMVar
@@ -301,6 +306,7 @@ toLazyByteString body = unsafePerformIO $ do
   return $ go ()
 {-# INLINE toLazyByteString #-}
 
+-- | Environemnt for handle output
 data PutBuilderEnv = PBE
   { pbHandle :: !Handle
   , pbBuffer :: !(IORef (ForeignPtr Word8))
@@ -351,6 +357,7 @@ hPutBuilderLen h b = do
   readIORef counter
 {-# INLINE hPutBuilderLen #-}
 
+-- | Environemnt for socket output
 data SocketEnv = SE
   { seSocket :: !S.Socket
   , seBuffer :: !(IORef (ForeignPtr Word8))

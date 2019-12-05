@@ -1,6 +1,15 @@
 {-# LANGUAGE MagicHash, CPP, UnboxedTuples #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE RankNTypes #-}
+----------------------------------------------------------------------------
+-- |
+-- Module      :  Mason.Builders
+-- Copyright   :  (c) Fumiaki Kinoshita 2019
+-- License     :  BSD3
+--
+-- Maintainer  :  Fumiaki Kinoshita <fumiexcel@gmail.com>
+--
+----------------------------------------------------------------------------
 module Mason.Builder
   ( Builder
   , BuilderFor
@@ -99,6 +108,7 @@ hPutBuilder :: Handle -> BuilderFor PutBuilderEnv -> IO ()
 hPutBuilder h b = void $ hPutBuilderLen h b
 {-# INLINE hPutBuilder #-}
 
+-- | Combine chunks of a lazy 'BL.ByteString'
 lazyByteString :: BL.ByteString -> Builder
 lazyByteString = foldMap byteString . BL.toChunks
 {-# INLINE lazyByteString #-}
