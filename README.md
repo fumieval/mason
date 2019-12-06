@@ -1,6 +1,9 @@
 mason: alacritous builder library
 ====
 
+[![Build Status](https://travis-ci.com/fumieval/mason.svg?branch=master)](https://travis-ci.com/fumieval/mason)
+[![Hackage](https://img.shields.io/hackage/v/mason)](https://hackage.haskell.org/package/mason)
+
 mason is a builder & IO library.
 
 * __Fast__: much faster than bytestring's Builder.
