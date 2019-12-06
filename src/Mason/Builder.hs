@@ -83,6 +83,8 @@ module Mason.Builder
   , byteStringHex
   , lazyByteStringHex
   -- * Advanced
+  , padded
+  , zeroPadded
   , primFixed
   , primBounded
   , lengthPrefixedWithin
