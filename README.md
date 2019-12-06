@@ -13,10 +13,15 @@ mason is a builder & IO library.
 * `hPutBuilderLen` writes a builder to a handle and returns the number of bytes.
 * `sendBuilder` sends the content of `Builder` over a socket.
 
+Usage
+----
+
+Replace `Data.ByteString.Builder` with `Mason.Builder`. Note that if you have `Builder` in the type signature, you'll need `RankNTypes` extensions because of the design explained below.
+
 Performance
 ----
 
-As long as the code is optimised, mason's builder can be very fast (twice or more as fast-builder or bytestring). Make sure that functions returning `Builder`s are well inlined.
+As long as the code is optimised, mason's builder can be very fast (twice or more as bytestring). Make sure that functions returning `Builder`s are well inlined.
 
 Serialisation of JSON-like structure:
 
@@ -86,7 +91,7 @@ Instances of the `Buildable` class implement purpose-specific behaviour (e.g. ex
 ensure :: Int -> (Buffer -> IO Buffer) -> Builder
 ```
 
-`ensure n f` secures at least `n` bytes in the buffer and passes the pointer to `f`. `ensure m f <> ensure n g` will fuse into `ensure (m + n) (f >=> g)` so don't worry about the overhead of bound checking.
+`ensure n f` secures at least `n` bytes in the buffer and passes the pointer to `f`. This gives rise to monoid homorphism; namely, `ensure m f <> ensure n g` will fuse into `ensure (m + n) (f >=> g)` so don't worry about the overhead of bound checking.
 
 Creating your own primitives
 ----
@@ -99,10 +104,10 @@ withPtr :: Int -- ^ number of bytes to allocate (if needed)
   -> (Ptr Word8 -> IO (Ptr Word8)) -- ^ return a next pointer after writing
   -> Builder
 
-foreign import ccall unsafe "static dtoa_grisu3"
-  dtoa_grisu3 :: Double -> Ptr Word8 -> IO CInt
-
 grisu v = withPtr 24 $ \ptr -> do
   n <- dtoa_grisu3 v ptr
   return $ plusPtr ptr (fromIntegral n)
+
+foreign import ccall unsafe "static dtoa_grisu3"
+  dtoa_grisu3 :: Double -> Ptr Word8 -> IO CInt
 ```
