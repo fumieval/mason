@@ -32,6 +32,21 @@ fast-builder/toLazyByteString            mean 249.0 μs  ( +- 25.60 μs  )
 bytestring/toLazyByteString              mean 263.4 μs  ( +- 9.401 μs  )
 ```
 
+In the same benchmark application, the allocation footprint of mason is feathery.
+
+```
+toStrictByteString
+mason           291,112    0
+fast-builder    991,016    0
+bytestring    1,158,584    0 (toStrict . toLazyByteString)
+
+toLazyByteString
+Case          Allocated  GCs
+mason           228,936    0
+fast-builder    903,752    0
+bytestring    1,101,448    0
+```
+
 `doubleDec` employs Grisu3 which grants ~20x speedup over `show`-based implementation.
 
 ```
