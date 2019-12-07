@@ -87,6 +87,13 @@ module Mason.Builder
   , doubleHexFixed
   , byteStringHex
   , lazyByteStringHex
+  -- * Variable-length encoding
+  , intVLQ
+  , intVLQBP
+  , wordVLQ
+  , wordVLQBP
+  , prefixVarInt
+  , prefixVarIntBP
   -- * Advanced
   , padded
   , zeroPadded
@@ -101,7 +108,8 @@ import Data.Word
 import Data.Int
 import qualified Data.Text as T
 import Foreign.C.Types
-import Foreign.Ptr (Ptr, plusPtr)
+import Foreign.Ptr (Ptr, plusPtr, castPtr)
+import Foreign.Storable (poke)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Mason.Builder.Internal as B
@@ -544,3 +552,71 @@ intDecPadded :: P.BoundedPrim Int
 intDecPadded = P.liftFixedToBounded $ caseWordSize_32_64
     (P.fixedPrim  9 $ c_int_dec_padded9            . fromIntegral)
     (P.fixedPrim 18 $ c_long_long_int_dec_padded18 . fromIntegral)
+
+-- Variable-length encoding
+----
+
+-- | Signed VLQ encoding (the first bit is a sign)
+intVLQ :: Int -> Builder
+intVLQ = primBounded intVLQBP
+{-# INLINE intVLQ #-}
+
+intVLQBP :: P.BoundedPrim Int
+intVLQBP = P.boudedPrim 10 writeIntFinite
+{-# INLINE CONLIKE intVLQBP #-}
+
+-- | Unsigned VLQ encoding
+wordVLQ :: Word -> Builder
+wordVLQ = primBounded wordVLQBP
+
+wordVLQBP :: P.BoundedPrim Word
+wordVLQBP = P.boudedPrim 10 (writeUnsignedFinite pure)
+
+writeWord8 :: Word8 -> Ptr Word8 -> IO (Ptr Word8)
+writeWord8 w p = do
+  poke p w
+  return $! plusPtr p 1
+
+writeIntFinite :: Int -> Ptr Word8 -> IO (Ptr Word8)
+writeIntFinite n
+  | n < 0 = case negate n of
+    n'
+      | n' < 0x40 -> writeWord8 (fromIntegral n' `setBit` 6)
+      | otherwise ->
+          writeWord8 (0xc0 .|. fromIntegral n') >=>
+            writeUnsignedFinite pure (unsafeShiftR n' 6)
+  | n < 0x40 = writeWord8 (fromIntegral n)
+  | otherwise = writeWord8 (fromIntegral n `setBit` 7 `clearBit` 6) >=>
+      writeUnsignedFinite pure (unsafeShiftR n 6)
+{-# INLINE writeIntFinite #-}
+
+writeUnsignedFinite :: (Bits a, Integral a) => (Ptr Word8 -> IO r) -> a -> Ptr Word8 -> IO r
+writeUnsignedFinite k = go
+  where
+    go m
+      | m < 0x80 = writeWord8 (fromIntegral m) >=> k
+      | otherwise = writeWord8 (setBit (fromIntegral m) 7) >=> go (unsafeShiftR m 7)
+{-# INLINE writeUnsignedFinite #-}
+
+-- | Encode a Word in <https://github.com/stoklund/varint#prefixvarint PrefixVarInt>
+prefixVarInt :: Word -> Builder
+prefixVarInt = primBounded prefixVarIntBP
+
+prefixVarIntBP :: P.BoundedPrim Word
+prefixVarIntBP = P.boudedPrim 9 $ \x ptr0 -> do
+  let bits = 64 - countLeadingZeros (x .|. 1)
+  if bits > 56
+    then do
+      poke ptr0 0
+      poke (castPtr ptr0 `plusPtr` 1) x
+      return $! ptr0 `plusPtr` 9
+    else do
+      let bytes = 1 + (bits - 1) `div` 7
+      let end = ptr0 `plusPtr` bytes
+      let go ptr n
+            | ptr == end = pure ptr
+            | otherwise = do
+              poke ptr (fromIntegral n .&. 0xff)
+              go (ptr `plusPtr` 1) (n `shiftR` 8)
+      go ptr0 $! (2 * x + 1) `shiftL` (bytes - 1)
+{-# INLINE CONLIKE prefixVarIntBP #-}
