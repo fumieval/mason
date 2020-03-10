@@ -107,7 +107,7 @@ import GHC.Types (Int(..))
 import System.IO (Handle)
 
 -- | Put the content of a 'Builder' to a 'Handle'.
-hPutBuilder :: Handle -> BuilderFor PutBuilderEnv -> IO ()
+hPutBuilder :: Handle -> BuilderFor PutEnv -> IO ()
 hPutBuilder h b = void $ hPutBuilderLen h b
 {-# INLINE hPutBuilder #-}
 

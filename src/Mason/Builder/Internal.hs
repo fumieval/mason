@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE RecordWildCards #-}
 module Mason.Builder.Internal (Builder
   , BuilderFor(..)
   , Buildable(..)
@@ -21,11 +22,10 @@ module Mason.Builder.Internal (Builder
   , primMapListBounded
   , primMapByteStringFixed
   , primMapLazyByteStringFixed
+  , PutEnv(..)
   , hPutBuilderLen
-  , PutBuilderEnv(..)
   , encodeUtf8BuilderEscaped
   , sendBuilder
-  , SocketEnv(..)
   , cstring
   , cstringUtf8
   , withPtr
@@ -66,7 +66,6 @@ import qualified Data.Text.Array as A
 import qualified Data.Text.Internal as T
 import qualified Data.Text.Internal.Encoding.Utf16 as U16
 import qualified Network.Socket as S
-import qualified Network.Socket.ByteString as S
 import GHC.Prim (eqWord#, plusAddr#, indexWord8OffAddr#)
 import GHC.Ptr (Ptr(..))
 import GHC.Word (Word8(..))
@@ -339,11 +338,13 @@ toLazyByteString body = unsafePerformIO $ do
   return $ go ()
 {-# INLINE toLazyByteString #-}
 
--- | Environemnt for handle output
-data PutBuilderEnv = PBE
-  { pbHandle :: !Handle
-  , pbBuffer :: !(IORef (ForeignPtr Word8))
-  , pbTotal :: !(IORef Int)
+-- | Environment for handle output
+data PutEnv = PutEnv
+  { peThreshold :: !Int
+  , pePut :: !(Ptr Word8 -> Ptr Word8 -> IO ())
+  -- ^ takes a pointer range and returns the number of bytes written
+  , peBuffer :: !(IORef (ForeignPtr Word8))
+  , peTotal :: !(IORef Int)
   }
 
 -- | Allocate a new buffer.
@@ -355,47 +356,43 @@ allocateConstant f len = Builder $ \env (Buffer _ _) -> do
   return $! Buffer (ptr1 `plusPtr` len) ptr1
 {-# INLINE allocateConstant #-}
 
-instance Buildable PutBuilderEnv where
-  byteString bs
-    | len > 4096 = mappend flush $ Builder $ \(PBE h _ _) buf -> do
-      B.hPut h bs
-      return buf
-    | otherwise = byteStringCopy bs
-    where
-      len = B.length bs
+instance Buildable PutEnv where
+  byteString bs@(B.PS fptr ofs len) = Builder $ \env@PutEnv{..} buf -> if len > peThreshold
+    then do
+      buf' <- unBuilder flush env buf
+      withForeignPtr fptr $ \ptr -> do
+        let ptr0 = ptr `plusPtr` ofs
+        pePut ptr0 (ptr0 `plusPtr` len)
+      pure buf'
+    else unBuilder (byteStringCopy bs) env buf
   {-# INLINE byteString #-}
 
-  flush = Builder $ \(PBE h ref counter) (Buffer end ptr) -> do
-    ptr0 <- unsafeForeignPtrToPtr <$> readIORef ref
+  flush = Builder $ \PutEnv{..} (Buffer end ptr) -> do
+    ptr0 <- unsafeForeignPtrToPtr <$> readIORef peBuffer
     let len = minusPtr ptr ptr0
-    modifyIORef' counter (+len)
-    hPutBuf h ptr0 len
+    modifyIORef' peTotal (+len)
+    pePut ptr0 ptr
     return $! Buffer end ptr0
   {-# INLINE flush #-}
 
-  allocate = allocateConstant pbBuffer
+  allocate = allocateConstant peBuffer
   {-# INLINE allocate #-}
 
 -- | Write a 'Builder' into a handle and obtain the number of bytes written.
 -- 'flush' does not imply actual disk operations. Set 'NoBuffering' if you want
 -- it to write the content immediately.
-hPutBuilderLen :: Handle -> BuilderFor PutBuilderEnv -> IO Int
+hPutBuilderLen :: Handle -> BuilderFor PutEnv -> IO Int
 hPutBuilderLen h b = do
   let initialSize = 4096
   fptr <- mallocForeignPtrBytes initialSize
   ref <- newIORef fptr
   let ptr = unsafeForeignPtrToPtr fptr
   counter <- newIORef 0
-  _ <- unBuilder (b <> flush) (PBE h ref counter) (Buffer (ptr `plusPtr` initialSize) ptr)
+  _ <- unBuilder (b <> flush)
+    (PutEnv initialSize (\ptr0 ptr1 -> hPutBuf h ptr (minusPtr ptr1 ptr0)) ref counter)
+    (Buffer (ptr `plusPtr` initialSize) ptr)
   readIORef counter
 {-# INLINE hPutBuilderLen #-}
-
--- | Environemnt for socket output
-data SocketEnv = SE
-  { seSocket :: !S.Socket
-  , seBuffer :: !(IORef (ForeignPtr Word8))
-  , seCounter :: !(IORef Int)
-  }
 
 sendBufRange :: S.Socket -> Ptr Word8 -> Ptr Word8 -> IO ()
 sendBufRange sock ptr0 ptr1 = go ptr0 where
@@ -406,34 +403,17 @@ sendBufRange sock ptr0 ptr1 = go ptr0 where
       S.withFdSocket sock $ threadWaitWrite . fromIntegral
       when (sent > 0) $ go $ p `plusPtr` sent
 
-instance Buildable SocketEnv where
-  byteString bs
-    | len > 4096 = mappend flush $ Builder $ \(SE sock _ _) (Buffer end ptr) -> do
-      S.sendAll sock bs
-      return $! Buffer end ptr
-    | otherwise = byteStringCopy bs
-    where
-      len = B.length bs
-  {-# INLINE byteString #-}
-
-  flush = Builder $ \(SE sock ref counter) (Buffer end ptr1) -> do
-    ptr0 <- unsafeForeignPtrToPtr <$> readIORef ref
-    sendBufRange sock ptr0 ptr1
-    modifyIORef' counter (+minusPtr ptr1 ptr0)
-    return $! Buffer end ptr0
-  {-# INLINE flush #-}
-
-  allocate = allocateConstant seBuffer
-
 -- | Write a 'Builder' into a handle and obtain the number of bytes written.
-sendBuilder :: S.Socket -> BuilderFor SocketEnv -> IO Int
+sendBuilder :: S.Socket -> BuilderFor PutEnv -> IO Int
 sendBuilder sock b = do
   let initialSize = 4096
   fptr <- mallocForeignPtrBytes initialSize
   ref <- newIORef fptr
   let ptr = unsafeForeignPtrToPtr fptr
   counter <- newIORef 0
-  _ <- unBuilder (b <> flush) (SE sock ref counter) (Buffer (ptr `plusPtr` initialSize) ptr)
+  _ <- unBuilder (b <> flush)
+    (PutEnv initialSize (sendBufRange sock) ref counter)
+    (Buffer (ptr `plusPtr` initialSize) ptr)
   readIORef counter
 {-# INLINE sendBuilder #-}
 
