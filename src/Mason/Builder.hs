@@ -22,11 +22,21 @@ module Mason.Builder
   , sendBuilder
   -- * Primitives
   , flush
-  , encodeUtf8Builder
-  , encodeUtf8BuilderEscaped
+  -- * Bytes
   , byteString
   , lazyByteString
   , shortByteString
+  -- * Text
+  , textUtf8
+  , encodeUtf8Builder
+  , encodeUtf8BuilderEscaped
+  , char7
+  , string7
+  , char8
+  , string8
+  , charUtf8
+  , stringUtf8
+  -- * Primitive
   , storable
   , int8
   , word8
@@ -46,12 +56,7 @@ module Mason.Builder
   , word64BE
   , floatBE
   , doubleBE
-  , char7
-  , string7
-  , char8
-  , string8
-  , charUtf8
-  , stringUtf8
+  -- * Numeral
   , floatDec
   , doubleDec
   , word8Dec
@@ -259,10 +264,15 @@ string8 = B.primMapListFixed P.char8
 charUtf8 :: Char -> Builder
 charUtf8 = B.primBounded P.charUtf8
 
--- | Encode 'T.Text' as a UTF-8 byte stream.
+-- | Encode 'T.Text' as a UTF-8 byte stream. Synonym for 'textUtf8'.
 encodeUtf8Builder :: T.Text -> Builder
-encodeUtf8Builder = B.encodeUtf8BuilderEscaped (P.liftFixedToBounded P.word8)
+encodeUtf8Builder = textUtf8
 {-# INLINE encodeUtf8Builder #-}
+
+-- | Encode 'T.Text' as a UTF-8 byte stream.
+textUtf8 :: T.Text -> Builder
+textUtf8 = B.encodeUtf8BuilderEscaped (P.liftFixedToBounded P.word8)
+{-# INLINE textUtf8 #-}
 
 --------------------
 -- Unsigned integers
