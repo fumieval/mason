@@ -35,7 +35,9 @@ module Mason.Builder.Internal (Builder
   -- * Internal
   , ensure
   , allocateConstant
-  , grisu3
+  , withGrisu3
+  , withGrisu3Rounded
+  , roundDigit
   ) where
 
 import Control.Concurrent
@@ -465,18 +467,47 @@ foreign import ccall unsafe "memmove"
     c_memmove :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
 
 -- | Decimal encoding of a positive 'Double'.
-{-# INLINE grisu3 #-}
-grisu3 :: Double -> Maybe (B.ByteString, Int)
-grisu3 d = unsafeDupablePerformIO $ allocaArray 2 $ \plen -> do
-  fptr <- B.mallocByteString 18
+{-# INLINE withGrisu3 #-}
+withGrisu3 :: Double -> IO r -> (Ptr Word8 -> Int -> Int -> IO r) -> IO r
+withGrisu3 d contFail cont = allocaArray 2 $ \plen -> allocaArray 19 $ \ptr -> do
   let pexp = plusPtr plen (S.sizeOf (undefined :: CInt))
-  success <- withForeignPtr fptr $ \ptr -> c_grisu3 (realToFrac d) ptr plen pexp
+  success <- c_grisu3 (realToFrac d) (ptr `plusPtr` 1) plen pexp
   if success == 0
-    then return Nothing
+    then contFail
     else do
       len <- fromIntegral <$> S.peek plen
       e <- fromIntegral <$> S.peek pexp
-      return $ Just (B.PS fptr 0 len, len + e)
+      cont ptr len (len + e)
+
+{-# INLINE withGrisu3Rounded #-}
+withGrisu3Rounded :: Int -> Double -> (Ptr Word8 -> Int -> Int -> IO r) -> IO r
+withGrisu3Rounded prec val cont = withGrisu3 val (error "withGrisu3Rounded: failed") $ \ptr len e -> do
+  let len' = min prec len
+  bump <- roundDigit prec len ptr
+  if bump then cont ptr len' (e + 1) else cont (ptr `plusPtr` 1) len' e
+
+-- | Round up to the supplied precision inplace.
+roundDigit
+  :: Int -- ^ precision
+  -> Int -- ^ available digits
+  -> Ptr Word8 -- ^ content
+  -> IO Bool
+roundDigit prec len _ | prec >= len = pure False
+roundDigit prec _ ptr = do
+  rd <- peekElemOff ptr (prec + 1)
+  let carry 0 = do
+        poke ptr 49
+        pure True
+      carry i = do
+        d <- peekElemOff ptr i
+        if d == 57
+          then pokeElemOff ptr i 48 *> carry (i - 1)
+          else do
+            pokeElemOff ptr i (d + 1)
+            pure False
+  if rd >= 53
+    then carry prec
+    else pure False
 
 foreign import ccall unsafe "static grisu3"
   c_grisu3 :: CDouble -> Ptr Word8 -> Ptr CInt -> Ptr CInt -> IO CInt

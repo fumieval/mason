@@ -1,6 +1,7 @@
 {-# LANGUAGE MagicHash, CPP, UnboxedTuples #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE LambdaCase #-}
 ----------------------------------------------------------------------------
 -- |
 -- Module      :  Mason.Builders
@@ -59,6 +60,9 @@ module Mason.Builder
   -- * Numeral
   , floatDec
   , doubleDec
+  , doubleSI
+  , doubleExp
+  , doubleFixed
   , word8Dec
   , word16Dec
   , word32Dec
@@ -103,14 +107,16 @@ module Mason.Builder
   ) where
 
 import Control.Monad
+import qualified Data.Array as A
 import Data.Bits
 import Data.Word
 import Data.Int
 import qualified Data.Text as T
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, plusPtr, castPtr)
-import Foreign.Storable (poke)
+import Foreign.Storable
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Lazy as BL
 import Mason.Builder.Internal as B
 import qualified Data.ByteString.Builder.Prim as P
@@ -319,16 +325,21 @@ wordDec = B.primBounded P.wordDec
 floatDec :: Float -> Builder
 floatDec = string7 . show
 
+wrapDoubleDec :: (Double -> Builder) -> Double -> Builder
+wrapDoubleDec k x
+  | isNaN x = string7 "NaN"
+  | isInfinite x = if x < 0 then string7 "-Infinity" else string7 "Infinity"
+  | isNegativeZero x = char7 '-' <> k 0.0
+  | x < 0 = char7 '-' <> k (-x)
+  | otherwise = k x
+{-# INLINE wrapDoubleDec #-}
+
 -- | Decimal encoding of an IEEE 'Double'.
 {-# INLINE doubleDec #-}
 doubleDec :: Double -> Builder
-doubleDec x
-  | isNaN x = string7 "NaN"
-  | isInfinite x = if x < 0 then string7 "-Infinity" else string7 "Infinity"
-  | x < 0 = char7 '-' <> grisu (-x)
-  | isNegativeZero x = string7 "-0.0"
-  | x == 0 = string7 "0.0"
-  | otherwise = grisu x
+doubleDec = wrapDoubleDec $ \case
+  0 -> string7 "0.0"
+  x -> grisu x
   where
     grisu v = withPtr 24 $ \ptr -> do
       n <- dtoa_grisu3 v ptr
@@ -336,6 +347,93 @@ doubleDec x
 
 foreign import ccall unsafe "static dtoa_grisu3"
   dtoa_grisu3 :: Double -> Ptr Word8 -> IO CInt
+
+-- | Attach an SI prefix so that abs(mantissa) is within [1, 1000). Omits c, d, da and h.
+doubleSI :: Int -- ^ precision: must be equal or greater than 3
+  -> Double
+  -> Builder
+doubleSI prec | prec < 3 = error "Mason.Builder.doubleSI: precision less than 3"
+doubleSI prec = wrapDoubleDec $ \case
+  0 -> zeroes prec
+  val -> Builder $ \env buf -> withGrisu3Rounded prec val $ \ptr len e -> do
+    let (pindex, dp) = divMod (e - 1) 3
+    print (dp, prec, len)
+    let mantissa
+          -- when the decimal separator would be at the end
+          | dp + 1 == prec = withPtr (prec + dp - 2) $ \dst -> do
+            _ <- B.memset dst 48 $ fromIntegral (prec + dp - 2)
+            B.memcpy dst ptr $ min len prec
+            return $ dst `plusPtr` (prec + dp - 2)
+          | otherwise = withPtr (prec + 1) $ \dst -> do
+            _ <- B.memset dst 48 $ fromIntegral (prec + 1)
+            B.memcpy dst ptr $ min len $ dp + 1
+            pokeElemOff dst (dp + 1) 46
+            B.memcpy (dst `plusPtr` (dp + 2)) (ptr `plusPtr` (dp + 1)) $ max 0 $ len - dp - 1
+            return $ dst `plusPtr` (prec + 1)
+    let prefix
+          | pindex == 0 = mempty
+          | pindex > 8 || pindex < (-8) = char7 'e' <> intDec (3 * pindex)
+          | otherwise = charUtf8 (prefices A.! pindex)
+    unBuilder (mantissa <> prefix) env buf
+  where
+    prefices = A.listArray (-8,8) "yzafpnμm\NULkMGTPEZY"
+
+zeroes :: Int -> Builder
+zeroes n = withPtr (n + 1) $ \dst -> do
+  _ <- B.memset dst 48 $ fromIntegral $ n + 1
+  pokeElemOff dst 1 46
+  return $ dst `plusPtr` (n + 1)
+
+-- | Always use exponents
+doubleExp :: Int -- ^ number of digits in the mantissa
+  -> Double
+  -> Builder
+doubleExp prec | prec < 1 = error "Mason.Builder.doubleFixed: precision too small"
+doubleExp prec = wrapDoubleDec $ \case
+  0 -> zeroes prec <> string7 "e0"
+  val -> Builder $ \env buf -> withGrisu3Rounded prec val $ \ptr len dp -> do
+    let len' = 1 + prec
+
+    firstDigit <- peek ptr
+
+    unBuilder (withPtr len' (\dst -> do
+      _ <- B.memset dst 48 $ fromIntegral len'
+      poke dst firstDigit
+      poke (dst `plusPtr` 1) (46 :: Word8)
+      B.memcpy (dst `plusPtr` 2) (ptr `plusPtr` 1) (min (len - 1) len')
+      return (dst `plusPtr` len'))
+      <> char7 'e' <> intDec (dp - 1)) env buf
+
+-- | Fixed precision
+doubleFixed :: Int -- ^ decimal points
+  -> Double
+  -> Builder
+doubleFixed 0 = intDec . round
+doubleFixed prec | prec < 0 = error "Mason.Builder.doubleFixed: negative precision"
+doubleFixed prec = wrapDoubleDec $ \case
+  0 -> zeroes (prec + 1)
+  val -> Builder $ \env buf -> withGrisu3 val (unBuilder (doubleDec val) env buf) $ \ptr0 len e0 -> do
+    bump <- roundDigit (prec + e0) len ptr0
+    let dp
+          | bump = e0 + 1
+          | otherwise = e0
+    let ptr
+          | bump = ptr0
+          | otherwise = ptr0 `plusPtr` 1
+    let len' = 1 + prec + max 1 dp
+
+    unBuilder (withPtr len' $ \dst -> do
+      _ <- B.memset dst 48 $ fromIntegral len'
+      if dp >= 1
+        then do
+          B.memcpy dst ptr $ min len dp
+          pokeElemOff dst dp 46
+          B.memcpy (dst `plusPtr` (dp + 1)) (ptr `plusPtr` dp) $ max 0 (len - dp)
+        else do
+          pokeElemOff dst 1 46
+          B.memcpy (dst `plusPtr` (2 - dp)) ptr len
+      return $ dst `plusPtr` len'
+      ) env buf
 
 ------------------------------------------------------------------------------
 -- Decimal Encoding
