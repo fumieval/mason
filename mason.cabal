@@ -18,6 +18,7 @@ library
   exposed-modules:
     Mason.Builder
     Mason.Builder.Internal
+    Mason.Builder.Dynamic
 
   c-sources: cbits/dtoa.c
   ghc-options: -Wall -O2
