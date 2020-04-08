@@ -35,7 +35,7 @@ instance B.Buildable DynamicBackend where
     DynPutEnv e -> B.unBuilder (B.allocate n) e buf
 
 -- | Builder with a fixed set of backends. This helps reducing code size
--- and unoptimised code especially on complex structures, at the cost of
+-- and unoptimised code especially on complex/recursive structures, at the cost of
 -- extensibility.
 type DynBuilder = B.BuilderFor DynamicBackend
 
