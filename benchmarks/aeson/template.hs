@@ -11,10 +11,6 @@ module NAME
   , doubleDec
   ) where
 
-#ifndef LIB
-#define LIB Data.ByteString.FastBuilder
-#endif
-
 import Data.Aeson
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
@@ -25,6 +21,9 @@ import qualified Data.Vector as V
 import System.IO (Handle)
 
 import LIB
+#ifdef LIB_EXTRA
+import LIB_EXTRA
+#endif
 import HashMapExts
 
 literal :: Builder

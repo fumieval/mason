@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
-#define LIB Mason.Builder
+#define LIB Mason.Builder hiding (toStrictByteString, toLazyByteString, hPutBuilder)
+#define LIB_EXTRA Mason.Builder.Dynamic
 #define NAME Mason
 #include "template.hs"
 
