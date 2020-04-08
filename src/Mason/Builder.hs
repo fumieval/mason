@@ -99,8 +99,8 @@ module Mason.Builder
   , prefixVarInt
   , prefixVarIntBP
   -- * Advanced
-  , padded
-  , zeroPadded
+  , paddedBoundedPrim
+  , zeroPaddedBoundedPrim
   , primFixed
   , primBounded
   , lengthPrefixedWithin

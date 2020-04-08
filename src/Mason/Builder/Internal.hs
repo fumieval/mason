@@ -30,8 +30,8 @@ module Mason.Builder.Internal (Builder
   , cstringUtf8
   , withPtr
   , storable
-  , padded
-  , zeroPadded
+  , paddedBoundedPrim
+  , zeroPaddedBoundedPrim
   -- * Internal
   , ensure
   , allocateConstant
@@ -245,12 +245,13 @@ primMapLazyByteStringFixed :: B.FixedPrim Word8 -> BL.ByteString -> Builder
 primMapLazyByteStringFixed fp = BL.foldr (mappend . primFixed fp) mempty
 {-# INLINE primMapLazyByteStringFixed #-}
 
-padded :: Word8
+paddedBoundedPrim
+  :: Word8 -- ^ filler
   -> Int -- ^ pad if shorter than this
   -> B.BoundedPrim a
   -> a
   -> Builder
-padded ch size bp a = ensure (B.sizeBound bp) $ \(Buffer end ptr) -> do
+paddedBoundedPrim ch size bp a = ensure (B.sizeBound bp) $ \(Buffer end ptr) -> do
   ptr' <- B.runB bp a ptr
   let len = ptr' `minusPtr` ptr
   let pad = size - len
@@ -259,8 +260,8 @@ padded ch size bp a = ensure (B.sizeBound bp) $ \(Buffer end ptr) -> do
     void $ B.memset ptr ch (fromIntegral pad)
   return $ Buffer end $ ptr' `plusPtr` max pad 0
 
-zeroPadded :: Int -> B.BoundedPrim a -> a -> Builder
-zeroPadded = padded 48
+zeroPaddedBoundedPrim :: Int -> B.BoundedPrim a -> a -> Builder
+zeroPaddedBoundedPrim = paddedBoundedPrim 48
 
 newtype GrowingBuffer = GrowingBuffer (IORef (ForeignPtr Word8))
 
