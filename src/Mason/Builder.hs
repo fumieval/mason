@@ -4,8 +4,8 @@
 {-# LANGUAGE LambdaCase #-}
 ----------------------------------------------------------------------------
 -- |
--- Module      :  Mason.Builders
--- Copyright   :  (c) Fumiaki Kinoshita 2019
+-- Module      :  Mason.Builder
+-- Copyright   :  (c) Fumiaki Kinoshita 2019-
 -- License     :  BSD3
 --
 -- Maintainer  :  Fumiaki Kinoshita <fumiexcel@gmail.com>

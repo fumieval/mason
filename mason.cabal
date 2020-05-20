@@ -25,6 +25,7 @@ library
     Mason.Builder
     Mason.Builder.Internal
     Mason.Builder.Dynamic
+    Mason.Builder.Compat
 
   c-sources: cbits/dtoa.c
   ghc-options: -Wall -O2

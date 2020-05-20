@@ -1,5 +1,7 @@
 # Revision history for mason
 
+* Added `Mason.Builder.Compat`
+
 ## 0.2
 
 * Added `doubleFixed`, `doubleSI` and `doubleExp`
