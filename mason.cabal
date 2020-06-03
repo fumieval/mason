@@ -1,7 +1,7 @@
 cabal-version:       2.4
 
 name:                mason
-version:             0.2
+version:             0.2.1
 synopsis:            Fast and extensible bytestring builder
 description:
   This package provides efficient implementation of bytestring builders.
