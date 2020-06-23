@@ -318,14 +318,19 @@ instance Buildable DCEnv where
   byteString = byteStringCopy
   {-# INLINE byteString #-}
   flush = Builder $ \env@(DCEnv v ref) (Buffer end ptr) -> do
-    ptr0 <- unsafeForeignPtrToPtr <$> readIORef ref
+    fptr <- readIORef ref
+    let ptr0 = unsafeForeignPtrToPtr fptr
     let len = minusPtr ptr ptr0
+    -- Introduce a larger buffer when it's tiny
+    let switch = len <= 128
     when (len > 0) $ do
       result <- unsafeShift $ \cont -> do
-        let !chunk = B.unsafeCreate len $ \dst -> B.memcpy dst ptr0 len
+        let !chunk
+              | switch = B.PS fptr 0 len
+              | otherwise = B.unsafeCreate len $ \dst -> B.memcpy dst ptr0 len
         pure $! BL.Chunk chunk $ unsafePerformIO $ unsafeReset $ cont $ pure BL.Empty
       writeIORef v result
-    if len <= 128
+    if switch
       then unBuilder (allocateConstant dcBuffer 4080) env (Buffer end ptr0)
       else return $! Buffer end ptr0
   {-# INLINE flush #-}
@@ -340,12 +345,13 @@ toLazyByteString body = unsafePerformIO $ unsafeReset $ do
   ref <- newIORef fptr
   let ptr = unsafeForeignPtrToPtr fptr
   Buffer _ ptr' <- unBuilder body (DCEnv res ref) (Buffer (ptr `plusPtr` initialSize) ptr)
-  ptr0 <- unsafeForeignPtrToPtr <$> readIORef ref
+  fptr' <- readIORef ref
+  let ptr0 = unsafeForeignPtrToPtr fptr
   let len = minusPtr ptr' ptr0
   if len > 0
-    then unsafeShift $ \cont -> do
-      let !chunk = B.unsafeCreate len $ \dst -> B.memcpy dst ptr0 len
-      pure $! BL.Chunk chunk $ unsafePerformIO $ unsafeReset $ cont $ pure BL.Empty
+    then unsafeShift $ \cont -> pure
+      $! BL.Chunk (B.PS fptr' 0 len)
+      $ unsafePerformIO $ unsafeReset $ cont $ pure BL.Empty
     else readIORef res
   where
     initialSize = 112
