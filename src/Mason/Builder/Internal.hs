@@ -317,22 +317,16 @@ unsafeShift f = IO $ shift# $ \k -> case f (\(IO a) -> IO (k a)) of IO b -> b
 instance Buildable DCEnv where
   byteString = byteStringCopy
   {-# INLINE byteString #-}
-  flush = Builder $ \env@(DCEnv v ref) (Buffer end ptr) -> do
+  flush = Builder $ \env@(DCEnv v ref) buf@(Buffer _ ptr) -> do
     fptr <- readIORef ref
     let ptr0 = unsafeForeignPtrToPtr fptr
     let len = minusPtr ptr ptr0
-    -- Introduce a larger buffer when it's tiny
-    let switch = len <= 128
     when (len > 0) $ do
       result <- unsafeShift $ \cont -> do
-        let !chunk
-              | switch = B.PS fptr 0 len
-              | otherwise = B.unsafeCreate len $ \dst -> B.memcpy dst ptr0 len
+        let !chunk = B.PS fptr 0 len
         pure $! BL.Chunk chunk $ unsafePerformIO $ unsafeReset $ cont $ pure BL.Empty
       writeIORef v result
-    if switch
-      then unBuilder (allocateConstant dcBuffer 4080) env (Buffer end ptr0)
-      else return $! Buffer end ptr0
+    unBuilder (allocateConstant dcBuffer 4080) env buf
   {-# INLINE flush #-}
   allocate = allocateConstant dcBuffer
   {-# INLINE allocate #-}
