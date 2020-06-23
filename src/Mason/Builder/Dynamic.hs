@@ -17,7 +17,7 @@ import Network.Socket (Socket)
 import System.IO (Handle)
 
 data DynamicBackend = DynGrowingBuffer !B.GrowingBuffer
-  | DynChannel !B.Channel
+  | DynChannel !B.DCEnv
   | DynPutEnv !B.PutEnv
 
 instance B.Buildable DynamicBackend where

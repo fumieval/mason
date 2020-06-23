@@ -13,7 +13,9 @@ module Mason.Builder.Internal (Builder
   , shortByteString
   , toStrictByteString
   , Channel(..)
+  , toLazyByteString'
   , toLazyByteString
+  , DCEnv(..)
   , stringUtf8
   , lengthPrefixedWithin
   , primBounded
@@ -68,10 +70,10 @@ import qualified Data.Text.Array as A
 import qualified Data.Text.Internal as T
 import qualified Data.Text.Internal.Encoding.Utf16 as U16
 import qualified Network.Socket as S
-import GHC.Prim (eqWord#, plusAddr#, indexWord8OffAddr#)
+import GHC.Prim (eqWord#, plusAddr#, indexWord8OffAddr#, shift#, reset#)
 import GHC.Ptr (Ptr(..))
 import GHC.Word (Word8(..))
-import GHC.Types (isTrue#)
+import GHC.Types (isTrue#, IO(..))
 import GHC.Base (unpackCString#, unpackCStringUtf8#, unpackFoldrCString#, build)
 
 -- | The Builder type. Requires RankNTypes extension
@@ -299,6 +301,56 @@ toStrictByteString b = unsafePerformIO $ do
     initialSize = 128
 {-# INLINE toStrictByteString #-}
 
+data DCEnv = DCEnv
+  { dcResult :: !(IORef BL.ByteString)
+  , dcBuffer :: !(IORef (ForeignPtr Word8))
+  }
+
+unsafeReset :: IO a -> IO a
+unsafeReset (IO a) = IO (reset# a)
+{-# INLINE unsafeReset #-}
+
+unsafeShift :: ((IO a -> IO b) -> IO b) -> IO a
+unsafeShift f = IO $ shift# $ \k -> case f (\(IO a) -> IO (k a)) of IO b -> b
+{-# INLINE unsafeShift #-}
+
+instance Buildable DCEnv where
+  byteString = byteStringCopy
+  {-# INLINE byteString #-}
+  flush = Builder $ \env@(DCEnv v ref) (Buffer end ptr) -> do
+    ptr0 <- unsafeForeignPtrToPtr <$> readIORef ref
+    let len = minusPtr ptr ptr0
+    when (len > 0) $ do
+      result <- unsafeShift $ \cont -> do
+        let !chunk = B.unsafeCreate len $ \dst -> B.memcpy dst ptr0 len
+        pure $! BL.Chunk chunk $ unsafePerformIO $ unsafeReset $ cont $ pure BL.Empty
+      writeIORef v result
+    if len <= 128
+      then unBuilder (allocateConstant dcBuffer 4080) env (Buffer end ptr0)
+      else return $! Buffer end ptr0
+  {-# INLINE flush #-}
+  allocate = allocateConstant dcBuffer
+  {-# INLINE allocate #-}
+
+-- | Create a lazy 'BL.ByteString'. Threaded runtime is required.
+toLazyByteString :: BuilderFor DCEnv -> BL.ByteString
+toLazyByteString body = unsafePerformIO $ unsafeReset $ do
+  res <- newIORef BL.Empty
+  fptr <- mallocForeignPtrBytes initialSize
+  ref <- newIORef fptr
+  let ptr = unsafeForeignPtrToPtr fptr
+  Buffer _ ptr' <- unBuilder body (DCEnv res ref) (Buffer (ptr `plusPtr` initialSize) ptr)
+  ptr0 <- unsafeForeignPtrToPtr <$> readIORef ref
+  let len = minusPtr ptr' ptr0
+  if len > 0
+    then unsafeShift $ \cont -> do
+      let !chunk = B.unsafeCreate len $ \dst -> B.memcpy dst ptr0 len
+      pure $! BL.Chunk chunk $ unsafePerformIO $ unsafeReset $ cont $ pure BL.Empty
+    else readIORef res
+  where
+    initialSize = 112
+{-# INLINE toLazyByteString #-}
+
 data Channel = Channel
   { chResp :: !(MVar B.ByteString)
   , chBuffer :: !(IORef (ForeignPtr Word8))
@@ -319,8 +371,8 @@ instance Buildable Channel where
   {-# INLINE allocate #-}
 
 -- | Create a lazy 'BL.ByteString'. Threaded runtime is required.
-toLazyByteString :: BuilderFor Channel -> BL.ByteString
-toLazyByteString body = unsafePerformIO $ do
+toLazyByteString' :: BuilderFor Channel -> BL.ByteString
+toLazyByteString' body = unsafePerformIO $ do
   resp <- newEmptyMVar
 
   let initialSize = 4096
@@ -339,7 +391,7 @@ toLazyByteString body = unsafePerformIO $ do
           then BL.empty
           else BL.Chunk bs (go ())
   return $ go ()
-{-# INLINE toLazyByteString #-}
+{-# INLINE toLazyByteString' #-}
 
 -- | Environment for handle output
 data PutEnv = PutEnv
