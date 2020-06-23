@@ -18,13 +18,13 @@ import qualified Data.Scientific as Sci
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
+import qualified Data.HashMap.Strict as HM
 import System.IO (Handle)
 
 import LIB
 #ifdef LIB_EXTRA
 import LIB_EXTRA
 #endif
-import HashMapExts
 
 literal :: Builder
 literal = "Haskell！Haskell！Haskell！Haskellぅぅうううわぁあああああああああん！！！あぁ…ああ…あっあっー！あぁあああ！！！HaskellHaskellHaskellぅううぁわぁああああ！！"
@@ -41,7 +41,7 @@ valueToByteString = toStrictByteString . fromValue
 fromValue :: Value -> Builder
 fromValue = go0 where
   go0 = rebuild . go
-  go (Object obj) = char8 '{' <> foldMapWithKey f obj <> char8 '}'
+  go (Object obj) = char8 '{' <> HM.foldMapWithKey f obj <> char8 '}'
     where
         f k v =
           encodeUtf8Builder k <> char8 ':' <> go0 v

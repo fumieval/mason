@@ -20,11 +20,11 @@ benchmark aeson
   type:                exitcode-stdio-1.0
   main-is:             main.hs
   hs-source-dirs:      aeson
-  other-modules:       Fast, Bstr, Mason, HashMapExts
+  other-modules:       Fast, Bstr, Mason
   include-dirs:        benchmarks/aeson
   build-depends:       base, fast-builder, aeson, gauge, bytestring,
     scientific, text, vector, deepseq, unordered-containers, ghc-prim,
-    template-haskell, true-name >= 0.1.0.0, mason
+    template-haskell, mason
   ghc-options:         -Wall -threaded -g -rtsopts -O2
   default-language:    Haskell2010
 
@@ -40,10 +40,10 @@ benchmark weigh
   type:                exitcode-stdio-1.0
   main-is:             json-weigh.hs
   hs-source-dirs:      aeson
-  other-modules:       Fast, Bstr, Mason, HashMapExts
+  other-modules:       Fast, Bstr, Mason
   include-dirs:        benchmarks/aeson
   build-depends:       base, fast-builder, aeson, weigh, bytestring,
-    scientific, text, vector, deepseq, unordered-containers, ghc-prim,
-    template-haskell, true-name >= 0.1.0.0, mason
+    scientific, text, vector, deepseq, unordered-containers >= 0.2.11, ghc-prim,
+    template-haskell, mason
   ghc-options:         -Wall -threaded -g -rtsopts -O2
   default-language:    Haskell2010
