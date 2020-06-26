@@ -4,11 +4,16 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 module Mason.Builder.Internal (Builder
   , BuilderFor(..)
+  , BState
   , Buildable(..)
   , GrowingBuffer(..)
   , Buffer(..)
+  , pattern Builder
+  , unBuilder
   , byteStringCopy
   , shortByteString
   , toStrictByteString
@@ -68,17 +73,31 @@ import qualified Data.Text.Array as A
 import qualified Data.Text.Internal as T
 import qualified Data.Text.Internal.Encoding.Utf16 as U16
 import qualified Network.Socket as S
-import GHC.Prim (eqWord#, plusAddr#, indexWord8OffAddr#)
+import GHC.Prim (eqWord#, plusAddr#, indexWord8OffAddr#, RealWorld, Addr#, State# )
 import GHC.Ptr (Ptr(..))
 import GHC.Word (Word8(..))
 import GHC.Types (isTrue#)
-import GHC.Base (unpackCString#, unpackCStringUtf8#, unpackFoldrCString#, build)
+import GHC.Base (unpackCString#, unpackCStringUtf8#, unpackFoldrCString#, build, IO(..), unIO)
 
 -- | The Builder type. Requires RankNTypes extension
 type Builder = forall s. Buildable s => BuilderFor s
 
 -- | Builder specialised for a backend
-newtype BuilderFor s = Builder { unBuilder :: s -> Buffer -> IO Buffer }
+newtype BuilderFor s = RawBuilder { unRawBuilder :: s -> BState -> BState }
+
+unBuilder :: BuilderFor s -> s -> Buffer -> IO Buffer
+unBuilder (RawBuilder f) = \env (Buffer (Ptr ptr) (Ptr end)) -> IO (\s -> case f env (# ptr, end, s #) of
+   (# ptr', end', s' #) -> (# s', Buffer (Ptr ptr') (Ptr end') #))
+{-# INLINE unBuilder #-}
+
+pattern Builder :: (s -> Buffer -> IO Buffer) -> BuilderFor s
+pattern Builder f <- (unBuilder -> f) where
+  Builder f = RawBuilder $ \env (# ptr, end, s #) -> case unIO (f env (Buffer (Ptr ptr) (Ptr end))) s of
+    (# s', Buffer (Ptr ptr') (Ptr end') #) -> (# ptr', end', s' #)
+
+{-# COMPLETE Builder #-}
+
+type BState = (#Addr#, Addr#, State# RealWorld #)
 
 -- | This class is used to provide backend-specific operations for running a 'Builder'.
 class Buildable s where
@@ -160,11 +179,11 @@ instance Buildable () where
   {-# INLINE allocate #-}
 
 instance Semigroup (BuilderFor s) where
-  Builder f <> Builder g = Builder $ \e -> f e >=> g e
+  RawBuilder f <> RawBuilder g = RawBuilder $ \e s -> g e (f e s)
   {-# INLINE[1] (<>) #-}
 
 instance Monoid (BuilderFor a) where
-  mempty = Builder $ const pure
+  mempty = RawBuilder (\_ s -> s)
   {-# INLINE mempty #-}
 
 -- | UTF-8 encode a 'String'.
