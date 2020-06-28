@@ -102,6 +102,7 @@ module Mason.Builder
   , intersperse
   , Mason.Builder.unwords
   , Mason.Builder.unlines
+  , viaShow
   -- * Advanced
   , paddedBoundedPrim
   , zeroPaddedBoundedPrim
@@ -736,3 +737,8 @@ unwords = intersperse (word8 32)
 unlines :: Buildable e => [BuilderFor e] -> BuilderFor e
 unlines = foldMap (<>word8 10)
 {-# INLINE unlines #-}
+
+-- | Turn a value into a 'Builder' using the 'Show' instance.
+viaShow :: Show a => a -> Builder
+viaShow = string8 . show
+{-# INLINE viaShow #-}

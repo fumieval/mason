@@ -2,6 +2,7 @@
 
 ## 0.2.2
 
+* Added `viaShow`
 * Added `intersperse`, `unwords` and `unlines`
 * Optmised the internal representation
 
