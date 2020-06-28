@@ -21,6 +21,8 @@ module Mason.Builder
   , hPutBuilderLen
   , hPutBuilder
   , sendBuilder
+  , withPopper
+  , toStreamingBody
   -- * Primitives
   , flush
   -- * Bytes

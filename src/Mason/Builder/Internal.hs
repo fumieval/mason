@@ -19,6 +19,9 @@ module Mason.Builder.Internal (Builder
   , toStrictByteString
   , Channel(..)
   , toLazyByteString
+  , withPopper
+  , StreamingEnv(..)
+  , toStreamingBody
   , stringUtf8
   , lengthPrefixedWithin
   , primBounded
@@ -54,6 +57,7 @@ import qualified Data.ByteString.Short.Internal as SB
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Internal as BL
 import qualified Data.ByteString.Internal as B
+import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Builder.Prim as P
 import qualified Data.ByteString.Builder.Prim.Internal as B
 import Data.Text.Internal.Unsafe.Shift (shiftR)
@@ -339,10 +343,21 @@ instance Buildable Channel where
 
 -- | Create a lazy 'BL.ByteString'. Threaded runtime is required.
 toLazyByteString :: BuilderFor Channel -> BL.ByteString
-toLazyByteString body = unsafePerformIO $ do
+toLazyByteString body = unsafePerformIO $ withPopper body $ \pop -> do
+  let go _ = unsafePerformIO $ do
+        bs <- pop
+        return $! if B.null bs
+          then BL.empty
+          else BL.Chunk bs (go ())
+  return $ go ()
+{-# INLINE toLazyByteString #-}
+
+-- | Use 'Builder' as a <http://hackage.haskell.org/package/http-client-0.7.1/docs/Network-HTTP-Client.html#t:GivesPopper GivesPopper'
+withPopper :: BuilderFor Channel -> (IO B.ByteString -> IO a) -> IO a
+withPopper body cont = do
   resp <- newEmptyMVar
 
-  let initialSize = 4096
+  let initialSize = 4080
   fptr <- mallocForeignPtrBytes initialSize
   ref <- newIORef fptr
   let ptr = unsafeForeignPtrToPtr fptr
@@ -352,13 +367,8 @@ toLazyByteString body = unsafePerformIO $ do
   _ <- flip forkFinally final $ unBuilder (body <> flush) (Channel resp ref)
     $ Buffer (ptr `plusPtr` initialSize) ptr
 
-  let go _ = unsafePerformIO $ do
-        bs <- takeMVar resp
-        return $! if B.null bs
-          then BL.empty
-          else BL.Chunk bs (go ())
-  return $ go ()
-{-# INLINE toLazyByteString #-}
+  cont $ takeMVar resp
+{-# INLINE withPopper #-}
 
 -- | Environment for handle output
 data PutEnv = PutEnv
@@ -531,3 +541,36 @@ roundDigit prec _ ptr = do
 
 foreign import ccall unsafe "static grisu3"
   c_grisu3 :: CDouble -> Ptr Word8 -> Ptr CInt -> Ptr CInt -> IO CInt
+
+data StreamingEnv = StreamingEnv
+  { sePush :: !(B.ByteString -> IO ())
+  , seBuffer :: !(IORef (ForeignPtr Word8))
+  }
+
+instance Buildable StreamingEnv where
+  byteString bs
+    | B.length bs < 4096 = byteStringCopy bs
+    | otherwise = flush <> Builder (\env b -> b <$ sePush env bs)
+  {-# INLINE byteString #-}
+  flush = Builder $ \(StreamingEnv push ref) (Buffer end ptr) -> do
+    ptr0 <- unsafeForeignPtrToPtr <$> readIORef ref
+    let len = minusPtr ptr ptr0
+    when (len > 0) $ push $! B.unsafeCreate len $ \dst -> B.memcpy dst ptr0 len
+    return $! Buffer end ptr0
+  {-# INLINE flush #-}
+  allocate = allocateConstant seBuffer
+  {-# INLINE allocate #-}
+
+-- | Convert a 'Builder' into a <http://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:StreamingBody StreamingBody>.
+toStreamingBody :: BuilderFor StreamingEnv -> (BB.Builder -> IO ()) -> IO () -> IO ()
+toStreamingBody body = \write _ -> do
+  let initialSize = 4080
+  fptr <- mallocForeignPtrBytes initialSize
+  ref <- newIORef fptr
+  let ptr = unsafeForeignPtrToPtr fptr
+  Buffer _ ptr2 <- unBuilder body
+    (StreamingEnv (write . BB.byteString) ref)
+    (Buffer (ptr `plusPtr` initialSize) ptr)
+  fptr' <- readIORef ref
+  let ptr1 = unsafeForeignPtrToPtr fptr'
+  write $ BB.byteString $ B.PS fptr' 0 (minusPtr ptr2 ptr1)
