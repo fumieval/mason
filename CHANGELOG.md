@@ -1,5 +1,12 @@
 # Revision history for mason
 
+## 0.2.2
+
+* Added `intersperse`, `unwords` and `unlines`
+* Optmised the internal representation
+
+## 0.2.1
+
 * Added `Mason.Builder.Compat`
 
 ## 0.2

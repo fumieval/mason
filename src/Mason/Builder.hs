@@ -98,12 +98,17 @@ module Mason.Builder
   , wordVLQBP
   , prefixVarInt
   , prefixVarIntBP
+  -- * Combinators
+  , intersperse
+  , Mason.Builder.unwords
+  , Mason.Builder.unlines
   -- * Advanced
   , paddedBoundedPrim
   , zeroPaddedBoundedPrim
   , primFixed
   , primBounded
   , lengthPrefixedWithin
+
   ) where
 
 import Control.Monad
@@ -718,3 +723,16 @@ prefixVarIntBP = P.boudedPrim 9 $ \x ptr0 -> do
               go (ptr `plusPtr` 1) (n `shiftR` 8)
       go ptr0 $! (2 * x + 1) `shiftL` (bytes - 1)
 {-# INLINE CONLIKE prefixVarIntBP #-}
+
+intersperse :: Buildable e => BuilderFor e -> [BuilderFor e] -> BuilderFor e
+intersperse d (x0 : xs) = x0 <> foldr (\x r -> d <> x <> r) mempty xs
+intersperse _ [] = mempty
+{-# INLINE intersperse #-}
+
+unwords :: Buildable e => [BuilderFor e] -> BuilderFor e
+unwords = intersperse (word8 32)
+{-# INLINE unwords #-}
+
+unlines :: Buildable e => [BuilderFor e] -> BuilderFor e
+unlines = foldMap (<>word8 10)
+{-# INLINE unlines #-}
