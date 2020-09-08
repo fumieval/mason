@@ -1,5 +1,7 @@
 # Revision history for mason
 
+* Added `intDecPadded`
+
 ## 0.2.2
 
 * Added `withPopper` and `toStreamingBody`

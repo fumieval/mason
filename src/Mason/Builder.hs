@@ -75,6 +75,7 @@ module Mason.Builder
   , int32Dec
   , int64Dec
   , intDec
+  , intDecPadded
   , integerDec
   , word8Hex
   , word16Hex
@@ -481,7 +482,10 @@ int64Dec = B.primBounded P.int64Dec
 intDec :: Int -> Builder
 intDec = B.primBounded P.intDec
 
-
+-- | 'intDec' with 0 padding
+intDecPadded :: Int -> Int -> Builder
+intDecPadded n = zeroPaddedBoundedPrim n P.intDec
+{-# INLINE intDecPadded #-}
 
 ------------------------------------------------------------------------------
 -- Hexadecimal Encoding
@@ -615,7 +619,7 @@ integerDec i
     go n | n < maxPow10 = intDec (fromInteger n)
          | otherwise    =
              case putH (splitf (maxPow10 * maxPow10) n) of
-               (x:xs) -> intDec x `mappend` B.primMapListBounded intDecPadded xs
+               (x:xs) -> intDec x `mappend` B.primMapListBounded intDecPadded18 xs
                []     -> errImpossible "integerDec: go"
 
     splitf :: Integer -> Integer -> [Integer]
@@ -653,9 +657,9 @@ foreign import ccall unsafe "static _hs_bytestring_int_dec_padded9"
 foreign import ccall unsafe "static _hs_bytestring_long_long_int_dec_padded18"
     c_long_long_int_dec_padded18 :: CLLong -> Ptr Word8 -> IO ()
 
-{-# INLINE intDecPadded #-}
-intDecPadded :: P.BoundedPrim Int
-intDecPadded = P.liftFixedToBounded $ caseWordSize_32_64
+{-# INLINE intDecPadded18 #-}
+intDecPadded18 :: P.BoundedPrim Int
+intDecPadded18 = P.liftFixedToBounded $ caseWordSize_32_64
     (P.fixedPrim  9 $ c_int_dec_padded9            . fromIntegral)
     (P.fixedPrim 18 $ c_long_long_int_dec_padded18 . fromIntegral)
 
