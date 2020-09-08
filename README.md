@@ -71,6 +71,7 @@ You can find more benchmarks below:
 
 <details>
 <summary>Click to expand</summary>
+<pre>
 treeToHex-2000/small-bytearray-builder   mean 44.01 μs  ( +- 1.620 μs  )
 treeToHex-2000/fast-builder              mean 34.40 μs  ( +- 390.1 ns  )
 treeToHex-2000/bytestring                mean 58.76 μs  ( +- 3.843 μs  )
@@ -86,12 +87,14 @@ byte-tree-2000/small-bytearray-builder   mean 30.53 μs  ( +- 51.53 ns  )
 byte-tree-2000/fast-builder              mean 26.91 μs  ( +- 592.2 ns  )
 byte-tree-2000/bytestring                mean 54.40 μs  ( +- 1.743 μs  )
 byte-tree-2000/mason                     mean 34.34 μs  ( +- 193.5 ns  )
+</pre>
 </details>
 
 * [haskell-perf/strict-bytestring-builder](https://github.com/haskell-perf/strict-bytestring-builders)
 
 <details>
 <summary>Click to expand</summary>
+<pre>
 averagedAppends-1/byteStringStrictBuilder mean 116.3 ns  ( +- 6.479 ns  )
 averagedAppends-1/byteStringTreeBuilder  mean 181.7 ns  ( +- 20.88 ns  )
 averagedAppends-1/fastBuilder            mean 181.5 ns  ( +- 7.219 ns  )
@@ -137,6 +140,7 @@ regularConcat-10000/blazeBuilder         mean 110.8 μs  ( +- 1.397 μs  )
 regularConcat-10000/binary               mean 308.1 μs  ( +- 5.346 μs  )
 regularConcat-10000/cereal               mean 352.0 μs  ( +- 6.142 μs  )
 regularConcat-10000/mason                mean 130.2 μs  ( +- 10.39 μs  )
+</pre>
 </details>
 
 Architecture
