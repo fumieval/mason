@@ -16,11 +16,13 @@ module Mason.Builder.Internal (Builder
   , unBuilder
   , byteStringCopy
   , shortByteString
+  , StrictByteStringBackend
   , toStrictByteString
   , Channel(..)
+  , LazyByteStringBackend
   , toLazyByteString
   , withPopper
-  , StreamingEnv(..)
+  , StreamingBackend(..)
   , toStreamingBody
   , stringUtf8
   , lengthPrefixedWithin
@@ -31,6 +33,7 @@ module Mason.Builder.Internal (Builder
   , primMapByteStringFixed
   , primMapLazyByteStringFixed
   , PutEnv(..)
+  , BufferedIOBackend
   , hPutBuilderLen
   , encodeUtf8BuilderEscaped
   , sendBuilder
@@ -305,8 +308,10 @@ instance Buildable GrowingBuffer where
     return $ Buffer (dst' `plusPtr` size') (dst' `plusPtr` pos)
   {-# INLINE allocate #-}
 
+type StrictByteStringBackend = GrowingBuffer
+
 -- | Create a strict 'B.ByteString'
-toStrictByteString :: BuilderFor GrowingBuffer -> B.ByteString
+toStrictByteString :: BuilderFor StrictByteStringBackend -> B.ByteString
 toStrictByteString b = unsafePerformIO $ do
   fptr0 <- mallocForeignPtrBytes initialSize
   bufferRef <- newIORef fptr0
@@ -341,8 +346,10 @@ instance Buildable Channel where
   allocate = allocateConstant chBuffer
   {-# INLINE allocate #-}
 
+type LazyByteStringBackend = Channel
+
 -- | Create a lazy 'BL.ByteString'. Threaded runtime is required.
-toLazyByteString :: BuilderFor Channel -> BL.ByteString
+toLazyByteString :: BuilderFor LazyByteStringBackend -> BL.ByteString
 toLazyByteString body = unsafePerformIO $ withPopper body $ \pop -> do
   let go _ = unsafePerformIO $ do
         bs <- pop
@@ -353,7 +360,7 @@ toLazyByteString body = unsafePerformIO $ withPopper body $ \pop -> do
 {-# INLINE toLazyByteString #-}
 
 -- | Use 'Builder' as a <http://hackage.haskell.org/package/http-client-0.7.1/docs/Network-HTTP-Client.html#t:GivesPopper GivesPopper'
-withPopper :: BuilderFor Channel -> (IO B.ByteString -> IO a) -> IO a
+withPopper :: BuilderFor LazyByteStringBackend -> (IO B.ByteString -> IO a) -> IO a
 withPopper body cont = do
   resp <- newEmptyMVar
 
@@ -410,10 +417,12 @@ instance Buildable PutEnv where
   allocate = allocateConstant peBuffer
   {-# INLINE allocate #-}
 
+type BufferedIOBackend = PutEnv
+
 -- | Write a 'Builder' into a handle and obtain the number of bytes written.
 -- 'flush' does not imply actual disk operations. Set 'NoBuffering' if you want
 -- it to write the content immediately.
-hPutBuilderLen :: Handle -> BuilderFor PutEnv -> IO Int
+hPutBuilderLen :: Handle -> BuilderFor BufferedIOBackend -> IO Int
 hPutBuilderLen h b = do
   let initialSize = 4096
   fptr <- mallocForeignPtrBytes initialSize
@@ -436,7 +445,7 @@ sendBufRange sock ptr0 ptr1 = go ptr0 where
       when (sent > 0) $ go $ p `plusPtr` sent
 
 -- | Write a 'Builder' into a handle and obtain the number of bytes written.
-sendBuilder :: S.Socket -> BuilderFor PutEnv -> IO Int
+sendBuilder :: S.Socket -> BuilderFor BufferedIOBackend -> IO Int
 sendBuilder sock b = do
   let initialSize = 4096
   fptr <- mallocForeignPtrBytes initialSize
@@ -542,17 +551,17 @@ roundDigit prec _ ptr = do
 foreign import ccall unsafe "static grisu3"
   c_grisu3 :: CDouble -> Ptr Word8 -> Ptr CInt -> Ptr CInt -> IO CInt
 
-data StreamingEnv = StreamingEnv
+data StreamingBackend = StreamingBackend
   { sePush :: !(B.ByteString -> IO ())
   , seBuffer :: !(IORef (ForeignPtr Word8))
   }
 
-instance Buildable StreamingEnv where
+instance Buildable StreamingBackend where
   byteString bs
     | B.length bs < 4096 = byteStringCopy bs
     | otherwise = flush <> Builder (\env b -> b <$ sePush env bs)
   {-# INLINE byteString #-}
-  flush = Builder $ \(StreamingEnv push ref) (Buffer end ptr) -> do
+  flush = Builder $ \(StreamingBackend push ref) (Buffer end ptr) -> do
     ptr0 <- unsafeForeignPtrToPtr <$> readIORef ref
     let len = minusPtr ptr ptr0
     when (len > 0) $ push $! B.unsafeCreate len $ \dst -> B.memcpy dst ptr0 len
@@ -562,14 +571,14 @@ instance Buildable StreamingEnv where
   {-# INLINE allocate #-}
 
 -- | Convert a 'Builder' into a <http://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:StreamingBody StreamingBody>.
-toStreamingBody :: BuilderFor StreamingEnv -> (BB.Builder -> IO ()) -> IO () -> IO ()
+toStreamingBody :: BuilderFor StreamingBackend -> (BB.Builder -> IO ()) -> IO () -> IO ()
 toStreamingBody body = \write _ -> do
   let initialSize = 4080
   fptr <- mallocForeignPtrBytes initialSize
   ref <- newIORef fptr
   let ptr = unsafeForeignPtrToPtr fptr
   Buffer _ ptr2 <- unBuilder body
-    (StreamingEnv (write . BB.byteString) ref)
+    (StreamingBackend (write . BB.byteString) ref)
     (Buffer (ptr `plusPtr` initialSize) ptr)
   fptr' <- readIORef ref
   let ptr1 = unsafeForeignPtrToPtr fptr'

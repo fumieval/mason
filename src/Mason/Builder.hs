@@ -16,12 +16,16 @@ module Mason.Builder
   , BuilderFor
   , Buildable
   -- * Runners
+  , StrictByteStringBackend
   , toStrictByteString
+  , LazyByteStringBackend
   , toLazyByteString
+  , BufferedIOBackend
   , hPutBuilderLen
   , hPutBuilder
   , sendBuilder
   , withPopper
+  , StreamingBackend
   , toStreamingBody
   -- * Primitives
   , flush
