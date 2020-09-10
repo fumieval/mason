@@ -1,6 +1,7 @@
-# Revision history for mason
+## 0.2.3
 
 * Added `intDecPadded`
+* Exported backend types: `StrictByteStringBackend`, `LazyByteStringBackend` and `BufferedIOBackend`
 
 ## 0.2.2
 
