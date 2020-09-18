@@ -1,3 +1,4 @@
+* Generalised the argument `intersperse`, `unlines`, `unwords` from a list to any `Foldable`
 ## 0.2.3
 
 * Added `intDecPadded`

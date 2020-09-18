@@ -122,6 +122,7 @@ module Mason.Builder
 import Control.Monad
 import qualified Data.Array as A
 import Data.Bits
+import Data.Foldable (toList)
 import Data.Word
 import Data.Int
 import qualified Data.Text as T
@@ -735,16 +736,17 @@ prefixVarIntBP = P.boudedPrim 9 $ \x ptr0 -> do
       go ptr0 $! (2 * x + 1) `shiftL` (bytes - 1)
 {-# INLINE CONLIKE prefixVarIntBP #-}
 
-intersperse :: Buildable e => BuilderFor e -> [BuilderFor e] -> BuilderFor e
-intersperse d (x0 : xs) = x0 <> foldr (\x r -> d <> x <> r) mempty xs
-intersperse _ [] = mempty
+intersperse :: (Foldable f, Buildable e) => BuilderFor e -> f (BuilderFor e) -> BuilderFor e
+intersperse d = go . toList where
+  go (x0 : xs) = x0 <> foldr (\x r -> d <> x <> r) mempty xs
+  go [] = mempty
 {-# INLINE intersperse #-}
 
-unwords :: Buildable e => [BuilderFor e] -> BuilderFor e
+unwords :: (Foldable f, Buildable e) => f (BuilderFor e) -> BuilderFor e
 unwords = intersperse (word8 32)
 {-# INLINE unwords #-}
 
-unlines :: Buildable e => [BuilderFor e] -> BuilderFor e
+unlines :: (Foldable f, Buildable e) => f (BuilderFor e) -> BuilderFor e
 unlines = foldMap (<>word8 10)
 {-# INLINE unlines #-}
 
