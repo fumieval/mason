@@ -194,7 +194,7 @@ instance Monoid (BuilderFor a) where
   {-# INLINE mempty #-}
 
 -- | UTF-8 encode a 'String'.
-stringUtf8 :: String -> Builder
+stringUtf8 :: Buildable s => String -> BuilderFor s
 stringUtf8 = primMapListBounded P.charUtf8
 {-# INLINE [1] stringUtf8 #-}
 
@@ -246,28 +246,28 @@ instance Buildable s => IsString (BuilderFor s) where
   {-# INLINE fromString #-}
 
 -- | Use 'B.BoundedPrim'
-primBounded :: B.BoundedPrim a -> a -> Builder
+primBounded :: Buildable s => B.BoundedPrim a -> a -> BuilderFor s
 primBounded bp = withPtr (B.sizeBound bp) . B.runB bp
 {-# INLINE primBounded #-}
 
 -- | Use 'B.FixedPrim'
-primFixed :: B.FixedPrim a -> a -> Builder
+primFixed :: Buildable s => B.FixedPrim a -> a -> BuilderFor s
 primFixed fp a = withPtr (B.size fp) $ \ptr -> (ptr `plusPtr` B.size fp) <$ B.runF fp a ptr
 {-# INLINE primFixed #-}
 
-primMapListFixed :: B.FixedPrim a -> [a] -> Builder
+primMapListFixed :: (Foldable t, Buildable s) => B.FixedPrim a -> t a -> BuilderFor s
 primMapListFixed fp = foldMap (primFixed fp)
 {-# INLINE primMapListFixed #-}
 
-primMapListBounded :: B.BoundedPrim a -> [a] -> Builder
+primMapListBounded :: Buildable s => B.BoundedPrim a -> [a] -> BuilderFor s
 primMapListBounded bp = foldMap (primBounded bp)
 {-# INLINE primMapListBounded #-}
 
-primMapByteStringFixed :: B.FixedPrim Word8 -> B.ByteString -> Builder
+primMapByteStringFixed :: Buildable s => B.FixedPrim Word8 -> B.ByteString -> BuilderFor s
 primMapByteStringFixed fp = B.foldr (mappend . primFixed fp) mempty
 {-# INLINE primMapByteStringFixed #-}
 
-primMapLazyByteStringFixed :: B.FixedPrim Word8 -> BL.ByteString -> Builder
+primMapLazyByteStringFixed :: Buildable s => B.FixedPrim Word8 -> BL.ByteString -> BuilderFor s
 primMapLazyByteStringFixed fp = BL.foldr (mappend . primFixed fp) mempty
 {-# INLINE primMapLazyByteStringFixed #-}
 
@@ -461,7 +461,7 @@ sendBuilder sock b = do
 {-# INLINE encodeUtf8BuilderEscaped #-}
 
 -- | Encode 'T.Text' with a custom escaping function
-encodeUtf8BuilderEscaped :: B.BoundedPrim Word8 -> T.Text -> Builder
+encodeUtf8BuilderEscaped :: Buildable s => B.BoundedPrim Word8 -> T.Text -> BuilderFor s
 encodeUtf8BuilderEscaped be = step where
   bound = max 4 $ B.sizeBound be
 

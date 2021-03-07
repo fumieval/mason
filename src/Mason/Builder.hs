@@ -146,7 +146,7 @@ hPutBuilder h b = void $ hPutBuilderLen h b
 
 -- | Combine chunks of a lazy 'BL.ByteString'
 lazyByteString :: BL.ByteString -> Builder
-lazyByteString = foldMap byteString . BL.toChunks
+lazyByteString x = foldMap byteString (BL.toChunks x)
 {-# INLINE lazyByteString #-}
 
 ------------------------------------------------------------------------------
@@ -157,13 +157,13 @@ lazyByteString = foldMap byteString . BL.toChunks
 --
 {-# INLINE int8 #-}
 int8 :: Int8 -> Builder
-int8 = B.primFixed P.int8
+int8 x = B.primFixed P.int8 x
 
 -- | Encode a single unsigned byte as-is.
 --
 {-# INLINE word8 #-}
 word8 :: Word8 -> Builder
-word8 = B.primFixed P.word8
+word8 x = B.primFixed P.word8 x
 
 
 ------------------------------------------------------------------------------
@@ -173,42 +173,42 @@ word8 = B.primFixed P.word8
 -- | Encode an 'Int16' in little endian format.
 {-# INLINE int16LE #-}
 int16LE :: Int16 -> Builder
-int16LE = B.primFixed P.int16LE
+int16LE x = B.primFixed P.int16LE x
 
 -- | Encode an 'Int32' in little endian format.
 {-# INLINE int32LE #-}
 int32LE :: Int32 -> Builder
-int32LE = B.primFixed P.int32LE
+int32LE x = B.primFixed P.int32LE x
 
 -- | Encode an 'Int64' in little endian format.
 {-# INLINE int64LE #-}
 int64LE :: Int64 -> Builder
-int64LE = B.primFixed P.int64LE
+int64LE x = B.primFixed P.int64LE x
 
 -- | Encode a 'Word16' in little endian format.
 {-# INLINE word16LE #-}
 word16LE :: Word16 -> Builder
-word16LE = B.primFixed P.word16LE
+word16LE x = B.primFixed P.word16LE x
 
 -- | Encode a 'Word32' in little endian format.
 {-# INLINE word32LE #-}
 word32LE :: Word32 -> Builder
-word32LE = B.primFixed P.word32LE
+word32LE x = B.primFixed P.word32LE x
 
 -- | Encode a 'Word64' in little endian format.
 {-# INLINE word64LE #-}
 word64LE :: Word64 -> Builder
-word64LE = B.primFixed P.word64LE
+word64LE x = B.primFixed P.word64LE x
 
 -- | Encode a 'Float' in little endian format.
 {-# INLINE floatLE #-}
 floatLE :: Float -> Builder
-floatLE = B.primFixed P.floatLE
+floatLE x = B.primFixed P.floatLE x
 
 -- | Encode a 'Double' in little endian format.
 {-# INLINE doubleLE #-}
 doubleLE :: Double -> Builder
-doubleLE = B.primFixed P.doubleLE
+doubleLE x = B.primFixed P.doubleLE x
 
 
 ------------------------------------------------------------------------------
@@ -218,42 +218,42 @@ doubleLE = B.primFixed P.doubleLE
 -- | Encode an 'Int16' in big endian format.
 {-# INLINE int16BE #-}
 int16BE :: Int16 -> Builder
-int16BE = B.primFixed P.int16BE
+int16BE x = B.primFixed P.int16BE x
 
 -- | Encode an 'Int32' in big endian format.
 {-# INLINE int32BE #-}
 int32BE :: Int32 -> Builder
-int32BE = B.primFixed P.int32BE
+int32BE x = B.primFixed P.int32BE x
 
 -- | Encode an 'Int64' in big endian format.
 {-# INLINE int64BE #-}
 int64BE :: Int64 -> Builder
-int64BE = B.primFixed P.int64BE
+int64BE x = B.primFixed P.int64BE x
 
 -- | Encode a 'Word16' in big endian format.
 {-# INLINE word16BE #-}
 word16BE :: Word16 -> Builder
-word16BE = B.primFixed P.word16BE
+word16BE x = B.primFixed P.word16BE x
 
 -- | Encode a 'Word32' in big endian format.
 {-# INLINE word32BE #-}
 word32BE :: Word32 -> Builder
-word32BE = B.primFixed P.word32BE
+word32BE x = B.primFixed P.word32BE x
 
 -- | Encode a 'Word64' in big endian format.
 {-# INLINE word64BE #-}
 word64BE :: Word64 -> Builder
-word64BE = B.primFixed P.word64BE
+word64BE x = B.primFixed P.word64BE x
 
 -- | Encode a 'Float' in big endian format.
 {-# INLINE floatBE #-}
 floatBE :: Float -> Builder
-floatBE = B.primFixed P.floatBE
+floatBE x = B.primFixed P.floatBE x
 
 -- | Encode a 'Double' in big endian format.
 {-# INLINE doubleBE #-}
 doubleBE :: Double -> Builder
-doubleBE = B.primFixed P.doubleBE
+doubleBE x = B.primFixed P.doubleBE x
 
 ------------------------------------------------------------------------------
 -- ASCII encoding
@@ -262,12 +262,12 @@ doubleBE = B.primFixed P.doubleBE
 -- | Char7 encode a 'Char'.
 {-# INLINE char7 #-}
 char7 :: Char -> Builder
-char7 = B.primFixed P.char7
+char7 x = B.primFixed P.char7 x
 
 -- | Char7 encode a 'String'.
 {-# INLINE string7 #-}
 string7 :: String -> Builder
-string7 = B.primMapListFixed P.char7
+string7 x = B.primMapListFixed P.char7 x
 
 ------------------------------------------------------------------------------
 -- ISO/IEC 8859-1 encoding
@@ -276,12 +276,12 @@ string7 = B.primMapListFixed P.char7
 -- | Char8 encode a 'Char'.
 {-# INLINE char8 #-}
 char8 :: Char -> Builder
-char8 = B.primFixed P.char8
+char8 x = B.primFixed P.char8 x
 
 -- | Char8 encode a 'String'.
 {-# INLINE string8 #-}
 string8 :: String -> Builder
-string8 = B.primMapListFixed P.char8
+string8 x = B.primMapListFixed P.char8 x
 
 ------------------------------------------------------------------------------
 -- UTF-8 encoding
@@ -290,16 +290,16 @@ string8 = B.primMapListFixed P.char8
 -- | UTF-8 encode a 'Char'.
 {-# INLINE charUtf8 #-}
 charUtf8 :: Char -> Builder
-charUtf8 = B.primBounded P.charUtf8
+charUtf8 x = B.primBounded P.charUtf8 x
 
 -- | Encode 'T.Text' as a UTF-8 byte stream. Synonym for 'textUtf8'.
 encodeUtf8Builder :: T.Text -> Builder
-encodeUtf8Builder = textUtf8
+encodeUtf8Builder x = textUtf8 x
 {-# INLINE encodeUtf8Builder #-}
 
 -- | Encode 'T.Text' as a UTF-8 byte stream.
 textUtf8 :: T.Text -> Builder
-textUtf8 = B.encodeUtf8BuilderEscaped (P.liftFixedToBounded P.word8)
+textUtf8 x = B.encodeUtf8BuilderEscaped (P.liftFixedToBounded P.word8) x
 {-# INLINE textUtf8 #-}
 
 --------------------
@@ -309,27 +309,27 @@ textUtf8 = B.encodeUtf8BuilderEscaped (P.liftFixedToBounded P.word8)
 -- | Decimal encoding of a 'Word8' using the ASCII digits.
 {-# INLINE word8Dec #-}
 word8Dec :: Word8 -> Builder
-word8Dec = B.primBounded P.word8Dec
+word8Dec x = B.primBounded P.word8Dec x
 
 -- | Decimal encoding of a 'Word16' using the ASCII digits.
 {-# INLINE word16Dec #-}
 word16Dec :: Word16 -> Builder
-word16Dec = B.primBounded P.word16Dec
+word16Dec x = B.primBounded P.word16Dec x
 
 -- | Decimal encoding of a 'Word32' using the ASCII digits.
 {-# INLINE word32Dec #-}
 word32Dec :: Word32 -> Builder
-word32Dec = B.primBounded P.word32Dec
+word32Dec x = B.primBounded P.word32Dec x
 
 -- | Decimal encoding of a 'Word64' using the ASCII digits.
 {-# INLINE word64Dec #-}
 word64Dec :: Word64 -> Builder
-word64Dec = B.primBounded P.word64Dec
+word64Dec x = B.primBounded P.word64Dec x
 
 -- | Decimal encoding of a 'Word' using the ASCII digits.
 {-# INLINE wordDec #-}
 wordDec :: Word -> Builder
-wordDec = B.primBounded P.wordDec
+wordDec x = B.primBounded P.wordDec x
 
 -- Floating point numbers
 -------------------------
@@ -337,10 +337,10 @@ wordDec = B.primBounded P.wordDec
 -- | /Currently slow./ Decimal encoding of an IEEE 'Float'.
 {-# INLINE floatDec #-}
 floatDec :: Float -> Builder
-floatDec = string7 . show
+floatDec x = string7 (show x)
 
-wrapDoubleDec :: (Double -> Builder) -> Double -> Builder
-wrapDoubleDec k x
+wrapDoubleDec :: Double -> (Double -> Builder) -> Builder
+wrapDoubleDec x k
   | isNaN x = string7 "NaN"
   | isInfinite x = if x < 0 then string7 "-Infinity" else string7 "Infinity"
   | isNegativeZero x = char7 '-' <> k 0.0
@@ -351,7 +351,7 @@ wrapDoubleDec k x
 -- | Decimal encoding of an IEEE 'Double'.
 {-# INLINE doubleDec #-}
 doubleDec :: Double -> Builder
-doubleDec = wrapDoubleDec $ \case
+doubleDec val = wrapDoubleDec val $ \case
   0 -> string7 "0.0"
   x -> grisu x
   where
@@ -366,10 +366,10 @@ foreign import ccall unsafe "static dtoa_grisu3"
 doubleSI :: Int -- ^ precision: must be equal or greater than 3
   -> Double
   -> Builder
-doubleSI prec | prec < 3 = error "Mason.Builder.doubleSI: precision less than 3"
-doubleSI prec = wrapDoubleDec $ \case
+doubleSI prec _ | prec < 3 = error "Mason.Builder.doubleSI: precision less than 3"
+doubleSI prec val = wrapDoubleDec val $ \case
   0 -> zeroes prec
-  val -> Builder $ \env buf -> withGrisu3Rounded prec val $ \ptr len e -> do
+  val' -> Builder $ \env buf -> withGrisu3Rounded prec val' $ \ptr len e -> do
     let (pindex, dp) = divMod (e - 1) 3
     print (dp, prec, len)
     let mantissa
@@ -402,10 +402,10 @@ zeroes n = withPtr (n + 1) $ \dst -> do
 doubleExp :: Int -- ^ number of digits in the mantissa
   -> Double
   -> Builder
-doubleExp prec | prec < 1 = error "Mason.Builder.doubleFixed: precision too small"
-doubleExp prec = wrapDoubleDec $ \case
+doubleExp prec _ | prec < 1 = error "Mason.Builder.doubleFixed: precision too small"
+doubleExp prec val = wrapDoubleDec val $ \case
   0 -> zeroes prec <> string7 "e0"
-  val -> Builder $ \env buf -> withGrisu3Rounded prec val $ \ptr len dp -> do
+  val' -> Builder $ \env buf -> withGrisu3Rounded prec val' $ \ptr len dp -> do
     let len' = 1 + prec
 
     firstDigit <- peek ptr
@@ -422,11 +422,11 @@ doubleExp prec = wrapDoubleDec $ \case
 doubleFixed :: Int -- ^ decimal points
   -> Double
   -> Builder
-doubleFixed 0 = intDec . round
-doubleFixed prec | prec < 0 = error "Mason.Builder.doubleFixed: negative precision"
-doubleFixed prec = wrapDoubleDec $ \case
+doubleFixed 0 val = intDec (round val)
+doubleFixed prec _ | prec < 0 = error "Mason.Builder.doubleFixed: negative precision"
+doubleFixed prec val = wrapDoubleDec val $ \case
   0 -> zeroes (prec + 1)
-  val -> Builder $ \env buf -> withGrisu3 val (unBuilder (doubleDec val) env buf) $ \ptr0 len e0 -> do
+  val' -> Builder $ \env buf -> withGrisu3 val' (unBuilder (doubleDec val) env buf) $ \ptr0 len e0 -> do
     bump <- roundDigit (prec + e0) len ptr0
     let dp
           | bump = e0 + 1
@@ -465,27 +465,27 @@ doubleFixed prec = wrapDoubleDec $ \case
 --
 {-# INLINE int8Dec #-}
 int8Dec :: Int8 -> Builder
-int8Dec = B.primBounded P.int8Dec
+int8Dec x = B.primBounded P.int8Dec x
 
 -- | Decimal encoding of an 'Int16' using the ASCII digits.
 {-# INLINE int16Dec #-}
 int16Dec :: Int16 -> Builder
-int16Dec = B.primBounded P.int16Dec
+int16Dec x = B.primBounded P.int16Dec x
 
 -- | Decimal encoding of an 'Int32' using the ASCII digits.
 {-# INLINE int32Dec #-}
 int32Dec :: Int32 -> Builder
-int32Dec = B.primBounded P.int32Dec
+int32Dec x = B.primBounded P.int32Dec x
 
 -- | Decimal encoding of an 'Int64' using the ASCII digits.
 {-# INLINE int64Dec #-}
 int64Dec :: Int64 -> Builder
-int64Dec = B.primBounded P.int64Dec
+int64Dec x = B.primBounded P.int64Dec x
 
 -- | Decimal encoding of an 'Int' using the ASCII digits.
 {-# INLINE intDec #-}
 intDec :: Int -> Builder
-intDec = B.primBounded P.intDec
+intDec x = B.primBounded P.intDec x
 
 -- | 'intDec' with 0 padding
 intDecPadded :: Int -> Int -> Builder
@@ -502,27 +502,27 @@ intDecPadded n = zeroPaddedBoundedPrim n P.intDec
 -- | Shortest hexadecimal encoding of a 'Word8' using lower-case characters.
 {-# INLINE word8Hex #-}
 word8Hex :: Word8 -> Builder
-word8Hex = B.primBounded P.word8Hex
+word8Hex x = B.primBounded P.word8Hex x
 
 -- | Shortest hexadecimal encoding of a 'Word16' using lower-case characters.
 {-# INLINE word16Hex #-}
 word16Hex :: Word16 -> Builder
-word16Hex = B.primBounded P.word16Hex
+word16Hex x = B.primBounded P.word16Hex x
 
 -- | Shortest hexadecimal encoding of a 'Word32' using lower-case characters.
 {-# INLINE word32Hex #-}
 word32Hex :: Word32 -> Builder
-word32Hex = B.primBounded P.word32Hex
+word32Hex x = B.primBounded P.word32Hex x
 
 -- | Shortest hexadecimal encoding of a 'Word64' using lower-case characters.
 {-# INLINE word64Hex #-}
 word64Hex :: Word64 -> Builder
-word64Hex = B.primBounded P.word64Hex
+word64Hex x = B.primBounded P.word64Hex x
 
 -- | Shortest hexadecimal encoding of a 'Word' using lower-case characters.
 {-# INLINE wordHex #-}
 wordHex :: Word -> Builder
-wordHex = B.primBounded P.wordHex
+wordHex x = B.primBounded P.wordHex x
 
 -- fixed width; leading zeroes
 ------------------------------
@@ -530,62 +530,62 @@ wordHex = B.primBounded P.wordHex
 -- | Encode a 'Int8' using 2 nibbles (hexadecimal digits).
 {-# INLINE int8HexFixed #-}
 int8HexFixed :: Int8 -> Builder
-int8HexFixed = B.primFixed P.int8HexFixed
+int8HexFixed x = B.primFixed P.int8HexFixed x
 
 -- | Encode a 'Int16' using 4 nibbles.
 {-# INLINE int16HexFixed #-}
 int16HexFixed :: Int16 -> Builder
-int16HexFixed = B.primFixed P.int16HexFixed
+int16HexFixed x = B.primFixed P.int16HexFixed x
 
 -- | Encode a 'Int32' using 8 nibbles.
 {-# INLINE int32HexFixed #-}
 int32HexFixed :: Int32 -> Builder
-int32HexFixed = B.primFixed P.int32HexFixed
+int32HexFixed x = B.primFixed P.int32HexFixed x
 
 -- | Encode a 'Int64' using 16 nibbles.
 {-# INLINE int64HexFixed #-}
 int64HexFixed :: Int64 -> Builder
-int64HexFixed = B.primFixed P.int64HexFixed
+int64HexFixed x = B.primFixed P.int64HexFixed x
 
 -- | Encode a 'Word8' using 2 nibbles (hexadecimal digits).
 {-# INLINE word8HexFixed #-}
 word8HexFixed :: Word8 -> Builder
-word8HexFixed = B.primFixed P.word8HexFixed
+word8HexFixed x = B.primFixed P.word8HexFixed x
 
 -- | Encode a 'Word16' using 4 nibbles.
 {-# INLINE word16HexFixed #-}
 word16HexFixed :: Word16 -> Builder
-word16HexFixed = B.primFixed P.word16HexFixed
+word16HexFixed x = B.primFixed P.word16HexFixed x
 
 -- | Encode a 'Word32' using 8 nibbles.
 {-# INLINE word32HexFixed #-}
 word32HexFixed :: Word32 -> Builder
-word32HexFixed = B.primFixed P.word32HexFixed
+word32HexFixed x = B.primFixed P.word32HexFixed x
 
 -- | Encode a 'Word64' using 16 nibbles.
 {-# INLINE word64HexFixed #-}
 word64HexFixed :: Word64 -> Builder
-word64HexFixed = B.primFixed P.word64HexFixed
+word64HexFixed x = B.primFixed P.word64HexFixed x
 
 -- | Encode an IEEE 'Float' using 8 nibbles.
 {-# INLINE floatHexFixed #-}
 floatHexFixed :: Float -> Builder
-floatHexFixed = B.primFixed P.floatHexFixed
+floatHexFixed x = B.primFixed P.floatHexFixed x
 
 -- | Encode an IEEE 'Double' using 16 nibbles.
 {-# INLINE doubleHexFixed #-}
 doubleHexFixed :: Double -> Builder
-doubleHexFixed = B.primFixed P.doubleHexFixed
+doubleHexFixed x = B.primFixed P.doubleHexFixed x
 
 -- | Encode each byte of a 'S.ByteString' using its fixed-width hex encoding.
 {-# NOINLINE byteStringHex #-} -- share code
 byteStringHex :: B.ByteString -> Builder
-byteStringHex = B.primMapByteStringFixed P.word8HexFixed
+byteStringHex x = B.primMapByteStringFixed P.word8HexFixed x
 
 -- | Encode each byte of a lazy 'L.ByteString' using its fixed-width hex encoding.
 {-# NOINLINE lazyByteStringHex #-} -- share code
 lazyByteStringHex :: BL.ByteString -> Builder
-lazyByteStringHex = B.primMapLazyByteStringFixed P.word8HexFixed
+lazyByteStringHex x = B.primMapLazyByteStringFixed P.word8HexFixed x
 
 #define PAIR(a,b) (# a,b #)
 
@@ -673,7 +673,7 @@ intDecPadded18 = P.liftFixedToBounded $ caseWordSize_32_64
 
 -- | Signed VLQ encoding (the first bit is a sign)
 intVLQ :: Int -> Builder
-intVLQ = primBounded intVLQBP
+intVLQ x = primBounded intVLQBP x
 {-# INLINE intVLQ #-}
 
 intVLQBP :: P.BoundedPrim Int
@@ -682,7 +682,7 @@ intVLQBP = P.boudedPrim 10 writeIntFinite
 
 -- | Unsigned VLQ encoding
 wordVLQ :: Word -> Builder
-wordVLQ = primBounded wordVLQBP
+wordVLQ x = primBounded wordVLQBP x
 
 wordVLQBP :: P.BoundedPrim Word
 wordVLQBP = P.boudedPrim 10 (writeUnsignedFinite pure)
@@ -715,7 +715,7 @@ writeUnsignedFinite k = go
 
 -- | Encode a Word in <https://github.com/stoklund/varint#prefixvarint PrefixVarInt>
 prefixVarInt :: Word -> Builder
-prefixVarInt = primBounded prefixVarIntBP
+prefixVarInt x = primBounded prefixVarIntBP x
 
 prefixVarIntBP :: P.BoundedPrim Word
 prefixVarIntBP = P.boudedPrim 9 $ \x ptr0 -> do
@@ -752,5 +752,5 @@ unlines = foldMap (<>word8 10)
 
 -- | Turn a value into a 'Builder' using the 'Show' instance.
 viaShow :: Show a => a -> Builder
-viaShow = string8 . show
+viaShow x = string8 (show x)
 {-# INLINE viaShow #-}
