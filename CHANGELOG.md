@@ -1,4 +1,8 @@
+## 0.2.4
+
 * Generalised the argument `intersperse`, `unlines`, `unwords` from a list to any `Foldable`
+* Supported GHC 9.0.1
+
 ## 0.2.3
 
 * Added `intDecPadded`
