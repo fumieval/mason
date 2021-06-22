@@ -54,7 +54,7 @@ module Mason.Builder.Internal (Builder
 import Control.Concurrent
 import Control.Exception (throw)
 import Control.Monad
-import Data.Bits ((.&.))
+import Data.Bits ((.&.), shiftR)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Short.Internal as SB
 import qualified Data.ByteString.Lazy as BL
@@ -63,7 +63,6 @@ import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Builder.Prim as P
 import qualified Data.ByteString.Builder.Prim.Internal as B
-import Data.Text.Internal.Unsafe.Shift (shiftR)
 import Data.Text.Internal.Unsafe.Char (ord)
 import System.IO
 import Foreign.C.Types
