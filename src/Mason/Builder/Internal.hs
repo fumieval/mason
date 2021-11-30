@@ -79,10 +79,9 @@ import qualified Data.Text.Array as A
 import qualified Data.Text.Internal as T
 import qualified Data.Text.Internal.Encoding.Utf16 as U16
 import qualified Network.Socket as S
-import GHC.Prim (eqWord#, plusAddr#, indexWord8OffAddr#, RealWorld, Addr#, State# )
+import GHC.Prim (plusAddr#, indexWord8OffAddr#, RealWorld, Addr#, State# )
 import GHC.Ptr (Ptr(..))
 import GHC.Word (Word8(..))
-import GHC.Types (isTrue#)
 import GHC.Base (unpackCString#, unpackCStringUtf8#, unpackFoldrCString#, build, IO(..), unIO)
 
 -- | The Builder type. Requires RankNTypes extension
@@ -212,7 +211,7 @@ cstring :: Ptr Word8 -> Builder
 cstring (Ptr addr0) = Builder $ step addr0
   where
     step addr env br@(Buffer end ptr)
-      | isTrue# (ch `eqWord#` 0##) = pure br
+      | W8# ch == 0 = pure br
       | ptr == end = unBuilder (ensure 3 $ step addr env) env br
       | otherwise = do
           S.poke ptr (W8# ch)
@@ -226,11 +225,11 @@ cstringUtf8 :: Ptr Word8 -> Builder
 cstringUtf8 (Ptr addr0) = Builder $ step addr0
   where
     step addr env br@(Buffer end ptr)
-      | isTrue# (ch `eqWord#` 0##) = pure br
+      | W8# ch == 0 = pure br
       | ptr == end = unBuilder (ensure 3 $ step addr env) env br
         -- NULL is encoded as 0xc0 0x80
-      | isTrue# (ch `eqWord#` 0xc0##)
-      , isTrue# (indexWord8OffAddr# addr 1# `eqWord#` 0x80##) = do
+      | W8# ch == 0xc0
+      , W8# (indexWord8OffAddr# addr 1#) == 0x80 = do
         S.poke ptr 0
         step (addr `plusAddr#` 2#) env (Buffer end (ptr `plusPtr` 1))
       | otherwise = do
