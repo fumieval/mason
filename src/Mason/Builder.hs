@@ -138,8 +138,6 @@ import qualified Data.ByteString.Builder.Prim.Internal as P
 #if !MIN_VERSION_bytestring(0,10,12)
 import Data.ByteString.Builder.Prim (boudedPrim)
 #endif
-import GHC.Integer.GMP.Internals
-import GHC.Types (Int(..))
 import System.IO (Handle)
 
 -- | Put the content of a 'Builder' to a 'Handle'.
@@ -590,8 +588,6 @@ byteStringHex x = B.primMapByteStringFixed P.word8HexFixed x
 lazyByteStringHex :: BL.ByteString -> Builder
 lazyByteStringHex x = B.primMapLazyByteStringFixed P.word8HexFixed x
 
-#define PAIR(a,b) (# a,b #)
-
 -- | Select an implementation depending on the bit-size of 'Word's.
 -- Currently, it produces a runtime failure if the bitsize is different.
 -- This is detected by the testsuite.
@@ -615,10 +611,10 @@ maxPow10 = toInteger $ (10 :: Int) ^ caseWordSize_32_64 (9 :: Int) 18
 -- | Decimal encoding of an 'Integer' using the ASCII digits.
 -- Simon Meier's improved implementation from https://github.com/haskell/bytestring/commit/92f19a5d94761042b44a433d7331107611e4d717
 integerDec :: Integer -> Builder
-integerDec (S# i#) = intDec (I# i#)
 integerDec i
-    | i < 0     = B.primFixed P.char8 '-' `mappend` go (-i)
-    | otherwise =                                   go ( i)
+    | i' <- fromInteger i, toInteger i' == i = intDec i'
+    | i < 0     = primFixed P.char8 '-' `mappend` go (-i)
+    | otherwise =                                   go i
   where
     errImpossible fun =
         error $ "integerDec: " ++ fun ++ ": the impossible happened."
@@ -627,7 +623,7 @@ integerDec i
     go n | n < maxPow10 = intDec (fromInteger n)
          | otherwise    =
              case putH (splitf (maxPow10 * maxPow10) n) of
-               (x:xs) -> intDec x `mappend` B.primMapListBounded intDecPadded18 xs
+               (x:xs) -> intDec x `mappend` primMapListBounded intDecPadded18 xs
                []     -> errImpossible "integerDec: go"
 
     splitf :: Integer -> Integer -> [Integer]
@@ -637,18 +633,18 @@ integerDec i
       where
         splith []     = errImpossible "splith"
         splith (n:ns) =
-            case n `quotRemInteger` pow10 of
-                PAIR(q,r) | q > 0     -> q : r : splitb ns
-                          | otherwise ->     r : splitb ns
+            case n `quotRem` pow10 of
+                (q,r) | q > 0     -> q : r : splitb ns
+                      | otherwise ->     r : splitb ns
 
         splitb []     = []
-        splitb (n:ns) = case n `quotRemInteger` pow10 of
-                            PAIR(q,r) -> q : r : splitb ns
+        splitb (n:ns) = case n `quotRem` pow10 of
+                            (q,r) -> q : r : splitb ns
 
     putH :: [Integer] -> [Int]
     putH []     = errImpossible "putH"
-    putH (n:ns) = case n `quotRemInteger` maxPow10 of
-                    PAIR(x,y)
+    putH (n:ns) = case n `quotRem` maxPow10 of
+                    (x,y)
                         | q > 0     -> q : r : putB ns
                         | otherwise ->     r : putB ns
                         where q = fromInteger x
@@ -656,8 +652,8 @@ integerDec i
 
     putB :: [Integer] -> [Int]
     putB []     = []
-    putB (n:ns) = case n `quotRemInteger` maxPow10 of
-                    PAIR(q,r) -> fromInteger q : fromInteger r : putB ns
+    putB (n:ns) = case n `quotRem` maxPow10 of
+                    (q,r) -> fromInteger q : fromInteger r : putB ns
 
 foreign import ccall unsafe "static _hs_bytestring_int_dec_padded9"
     c_int_dec_padded9 :: CInt -> Ptr Word8 -> IO ()
