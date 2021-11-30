@@ -135,6 +135,9 @@ import qualified Data.ByteString.Lazy as BL
 import Mason.Builder.Internal as B
 import qualified Data.ByteString.Builder.Prim as P
 import qualified Data.ByteString.Builder.Prim.Internal as P
+#if !MIN_VERSION_bytestring(0,10,12)
+import Data.ByteString.Builder.Prim (boudedPrim)
+#endif
 import GHC.Integer.GMP.Internals
 import GHC.Types (Int(..))
 import System.IO (Handle)
@@ -668,6 +671,11 @@ intDecPadded18 = P.liftFixedToBounded $ caseWordSize_32_64
     (P.fixedPrim  9 $ c_int_dec_padded9            . fromIntegral)
     (P.fixedPrim 18 $ c_long_long_int_dec_padded18 . fromIntegral)
 
+#if !MIN_VERSION_bytestring(0,10,12)
+boundedPrim :: Int -> (a -> Ptr Word8 -> IO (Ptr Word8)) -> BoundedPrim a
+boundedPrim = boudedPrim
+#endif
+
 -- Variable-length encoding
 ----
 
@@ -677,7 +685,7 @@ intVLQ x = primBounded intVLQBP x
 {-# INLINE intVLQ #-}
 
 intVLQBP :: P.BoundedPrim Int
-intVLQBP = P.boudedPrim 10 writeIntFinite
+intVLQBP = P.boundedPrim 10 writeIntFinite
 {-# INLINE CONLIKE intVLQBP #-}
 
 -- | Unsigned VLQ encoding
@@ -685,7 +693,7 @@ wordVLQ :: Word -> Builder
 wordVLQ x = primBounded wordVLQBP x
 
 wordVLQBP :: P.BoundedPrim Word
-wordVLQBP = P.boudedPrim 10 (writeUnsignedFinite pure)
+wordVLQBP = P.boundedPrim 10 (writeUnsignedFinite pure)
 
 writeWord8 :: Word8 -> Ptr Word8 -> IO (Ptr Word8)
 writeWord8 w p = do
@@ -718,7 +726,7 @@ prefixVarInt :: Word -> Builder
 prefixVarInt x = primBounded prefixVarIntBP x
 
 prefixVarIntBP :: P.BoundedPrim Word
-prefixVarIntBP = P.boudedPrim 9 $ \x ptr0 -> do
+prefixVarIntBP = P.boundedPrim 9 $ \x ptr0 -> do
   let bits = 64 - countLeadingZeros (x .|. 1)
   if bits > 56
     then do
