@@ -338,7 +338,10 @@ instance Buildable Channel where
   flush = Builder $ \(Channel v ref) (Buffer end ptr) -> do
     ptr0 <- unsafeForeignPtrToPtr <$> readIORef ref
     let len = minusPtr ptr ptr0
-    when (len > 0) $ putMVar v $! B.unsafeCreate len $ \dst -> B.memcpy dst ptr0 len
+    when (len > 0) $ do
+      bs <- B.mallocByteString len
+      withForeignPtr bs $ \dst -> B.memcpy dst ptr0 len
+      putMVar v $ B.PS bs 0 len
     return $! Buffer end ptr0
   {-# INLINE flush #-}
   allocate = allocateConstant chBuffer
@@ -349,12 +352,12 @@ type LazyByteStringBackend = Channel
 -- | Create a lazy 'BL.ByteString'. Threaded runtime is required.
 toLazyByteString :: BuilderFor LazyByteStringBackend -> BL.ByteString
 toLazyByteString body = unsafePerformIO $ withPopper body $ \pop -> do
-  let go _ = unsafePerformIO $ do
+  let go _ = do
         bs <- pop
         return $! if B.null bs
           then BL.empty
-          else BL.Chunk bs (go ())
-  return $ go ()
+          else BL.Chunk bs $ unsafePerformIO $ go ()
+  return $ unsafePerformIO $ go ()
 {-# INLINE toLazyByteString #-}
 
 -- | Use 'Builder' as a <http://hackage.haskell.org/package/http-client-0.7.1/docs/Network-HTTP-Client.html#t:GivesPopper GivesPopper'
@@ -367,7 +370,7 @@ withPopper body cont = do
   ref <- newIORef fptr
   let ptr = unsafeForeignPtrToPtr fptr
 
-  let final (Left e) = throw e
+  let final (Left e) = putMVar resp (throw e)
       final (Right _) = putMVar resp B.empty
   _ <- flip forkFinally final $ unBuilder (body <> flush) (Channel resp ref)
     $ Buffer (ptr `plusPtr` initialSize) ptr
