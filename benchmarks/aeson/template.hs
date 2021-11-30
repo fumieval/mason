@@ -12,13 +12,14 @@ module NAME
   ) where
 
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as HM
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Scientific as Sci
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
-import qualified Data.HashMap.Strict as HM
 import System.IO (Handle)
 
 import LIB
@@ -44,7 +45,7 @@ fromValue = go0 where
   go (Object obj) = char8 '{' <> HM.foldMapWithKey f obj <> char8 '}'
     where
         f k v =
-          encodeUtf8Builder k <> char8 ':' <> go0 v
+          encodeUtf8Builder (Key.toText k) <> char8 ':' <> go0 v
           <> char8 ','
   go (Array arr) = V.foldr f (const $ char8 ']') arr True
     where
@@ -52,7 +53,9 @@ fromValue = go0 where
         (if initial then char8 '[' else char8 ',')
         <> go0 x <> r False
   go (String s) = encodeUtf8Builder s
-  go (Number n) = either doubleDec integerDec $ Sci.floatingOrInteger n
+  go (Number n) = case Sci.floatingOrInteger n of
+    Left x -> doubleDec x
+    Right x -> integerDec x
   go (Bool False) = "false"
   go (Bool True) = "true"
   go Null = "null"

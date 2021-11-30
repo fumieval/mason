@@ -3,7 +3,7 @@ import qualified Data.ByteString.Builder as B
 import qualified Mason.Builder.Dynamic as MD
 import qualified Mason.Builder as M
 import qualified Data.ByteString.FastBuilder as F
-import Gauge.Main
+import Test.Tasty.Bench
 
 b_bytestring :: Int -> B.Builder
 b_bytestring 0 = B.char7 'o'
