@@ -25,14 +25,17 @@ instance B.Buildable DynamicBackend where
     DynGrowingBuffer e -> B.unBuilder (B.byteString bs) e buf
     DynChannel e -> B.unBuilder (B.byteString bs) e buf
     DynPutEnv e -> B.unBuilder (B.byteString bs) e buf
+  {-# INLINE byteString #-}
   flush = B.Builder $ \env buf -> case env of
     DynGrowingBuffer e -> B.unBuilder B.flush e buf
     DynChannel e -> B.unBuilder B.flush e buf
     DynPutEnv e -> B.unBuilder B.flush e buf
+  {-# INLINE flush #-}
   allocate n = B.Builder $ \env buf -> case env of
     DynGrowingBuffer e -> B.unBuilder (B.allocate n) e buf
     DynChannel e -> B.unBuilder (B.allocate n) e buf
     DynPutEnv e -> B.unBuilder (B.allocate n) e buf
+  {-# INLINE allocate #-}
 
 -- | Builder with a fixed set of backends. This helps reducing code size
 -- and unoptimised code especially on complex/recursive structures, at the cost of

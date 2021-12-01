@@ -654,6 +654,7 @@ integerDec i
     putB []     = []
     putB (n:ns) = case n `quotRem` maxPow10 of
                     (q,r) -> fromInteger q : fromInteger r : putB ns
+{-# INLINE integerDec #-}
 
 foreign import ccall unsafe "static _hs_bytestring_int_dec_padded9"
     c_int_dec_padded9 :: CInt -> Ptr Word8 -> IO ()

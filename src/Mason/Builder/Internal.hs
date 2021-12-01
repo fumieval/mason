@@ -84,6 +84,13 @@ import GHC.Ptr (Ptr(..))
 import GHC.Word (Word8(..))
 import GHC.Base (unpackCString#, unpackCStringUtf8#, unpackFoldrCString#, build, IO(..), unIO)
 
+-- https://www.haskell.org/ghc/blog/20210607-the-keepAlive-story.html
+unsafeWithForeignPtr :: ForeignPtr a -> (Ptr a -> IO b) -> IO b
+unsafeWithForeignPtr fo f = do
+  r <- f (unsafeForeignPtrToPtr fo)
+  touchForeignPtr fo
+  return r
+
 -- | The Builder type. Requires RankNTypes extension
 type Builder = forall s. Buildable s => BuilderFor s
 
@@ -124,7 +131,7 @@ data Buffer = Buffer
 -- | Copy a 'B.ByteString' to a buffer.
 byteStringCopy :: Buildable s => B.ByteString -> BuilderFor s
 byteStringCopy = \(B.PS fsrc ofs len) -> withPtr len $ \ptr -> do
-  withForeignPtr fsrc $ \src -> B.memcpy ptr (src `plusPtr` ofs) len
+  unsafeWithForeignPtr fsrc $ \src -> B.memcpy ptr (src `plusPtr` ofs) len
   return $ ptr `plusPtr` len
 {-# INLINE byteStringCopy #-}
 
@@ -340,7 +347,7 @@ instance Buildable Channel where
     let len = minusPtr ptr ptr0
     when (len > 0) $ do
       bs <- B.mallocByteString len
-      withForeignPtr bs $ \dst -> B.memcpy dst ptr0 len
+      unsafeWithForeignPtr bs $ \dst -> B.memcpy dst ptr0 len
       putMVar v $ B.PS bs 0 len
     return $! Buffer end ptr0
   {-# INLINE flush #-}
@@ -400,7 +407,7 @@ instance Buildable PutEnv where
   byteString bs@(B.PS fptr ofs len) = Builder $ \env@PutEnv{..} buf -> if len > peThreshold
     then do
       buf' <- unBuilder flush env buf
-      withForeignPtr fptr $ \ptr -> do
+      unsafeWithForeignPtr fptr $ \ptr -> do
         let ptr0 = ptr `plusPtr` ofs
         pePut ptr0 (ptr0 `plusPtr` len)
       pure buf'
