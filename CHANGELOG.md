@@ -1,3 +1,7 @@
+## 0.2.5
+
+* Supported GHC 9.2.1
+
 ## 0.2.4
 
 * Generalised the argument `intersperse`, `unlines`, `unwords` from a list to any `Foldable`
