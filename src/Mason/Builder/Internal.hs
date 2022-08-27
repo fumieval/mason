@@ -6,6 +6,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE CPP #-}
 module Mason.Builder.Internal (Builder
   , BuilderFor(..)
   , BState
@@ -54,7 +55,6 @@ module Mason.Builder.Internal (Builder
 import Control.Concurrent
 import Control.Exception (throw)
 import Control.Monad
-import Data.Bits ((.&.), shiftR)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Short.Internal as SB
 import qualified Data.ByteString.Lazy as BL
@@ -63,7 +63,6 @@ import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Builder.Prim as P
 import qualified Data.ByteString.Builder.Prim.Internal as B
-import Data.Text.Internal.Unsafe.Char (ord)
 import System.IO
 import Foreign.C.Types
 import Foreign.Ptr
@@ -77,12 +76,19 @@ import Foreign.Storable as S
 import System.IO.Unsafe
 import qualified Data.Text.Array as A
 import qualified Data.Text.Internal as T
-import qualified Data.Text.Internal.Encoding.Utf16 as U16
 import qualified Network.Socket as S
 import GHC.Prim (plusAddr#, indexWord8OffAddr#, RealWorld, Addr#, State# )
 import GHC.Ptr (Ptr(..))
 import GHC.Word (Word8(..))
 import GHC.Base (unpackCString#, unpackCStringUtf8#, unpackFoldrCString#, build, IO(..), unIO)
+
+#if MIN_VERSION_text(2,0,0)
+#else
+-- imports required by 'encodeUtf8BuilderEscaped'
+import Data.Bits ((.&.), shiftR)
+import Data.Text.Internal.Unsafe.Char (ord)
+import qualified Data.Text.Internal.Encoding.Utf16 as U16
+#endif
 
 -- https://www.haskell.org/ghc/blog/20210607-the-keepAlive-story.html
 unsafeWithForeignPtr :: ForeignPtr a -> (Ptr a -> IO b) -> IO b
@@ -468,8 +474,37 @@ sendBuilder sock b = do
 
 {-# INLINE encodeUtf8BuilderEscaped #-}
 
--- | Encode 'T.Text' with a custom escaping function
+-- | Encode 'T.Text' with a custom escaping function.
+--
+-- Note that implementation differs between @text-1.x@ and @text-2.x@ due to the
+-- package moving from using UTF-16 to UTF-8 for the internal representation.
 encodeUtf8BuilderEscaped :: Buildable s => B.BoundedPrim Word8 -> T.Text -> BuilderFor s
+
+#if MIN_VERSION_text(2,0,0)
+encodeUtf8BuilderEscaped be = step where
+  bound = max 4 $ B.sizeBound be
+
+  step (T.Text arr off len) = Builder $ loop off where
+    iend = off + len
+    loop !i0 env !br@(Buffer ope op0)
+      | i0 >= iend       = return br
+      | outRemaining > 0 = goPartial (i0 + min outRemaining inpRemaining)
+      | otherwise        = unBuilder (ensure bound (loop i0 env)) env br
+      where
+        outRemaining = (ope `minusPtr` op0) `quot` bound
+        inpRemaining = iend - i0
+
+        goPartial !iendTmp = go i0 op0
+          where
+            go !i !op
+              | i < iendTmp = do
+                let w = A.unsafeIndex arr i
+                if w < 0x80
+                  then B.runB be w op >>= go (i + 1)
+                  else poke op w >> go (i + 1) (op `plusPtr` 1)
+              | otherwise = loop i env (Buffer ope op)
+
+#else
 encodeUtf8BuilderEscaped be = step where
   bound = max 4 $ B.sizeBound be
 
@@ -509,6 +544,7 @@ encodeUtf8BuilderEscaped be = step where
               where
                 poke8 :: Integral a => Int -> a -> IO ()
                 poke8 j v = S.poke (op `plusPtr` j) (fromIntegral v :: Word8)
+#endif
 
 foreign import ccall unsafe "memmove"
     c_memmove :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
