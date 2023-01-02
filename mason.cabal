@@ -14,7 +14,7 @@ maintainer:          fumiexcel@gmail.com
 copyright:           2021 Fumiaki Kinoshita, Don Stewart 2005-2009, Duncan Coutts 2006-2015, David Roundy 2003-2005, Jasper Van der Jeugt 2010, Simon Meier 2010-2013, Ben Gamari 2017
 category:            Data
 extra-source-files:  CHANGELOG.md, README.md
-tested-with:         GHC == 9.2.1, GHC==9.0.1, GHC==8.10.7
+tested-with:         GHC == 9.4.2, GHC == 9.2.5, GHC==9.0.1, GHC==8.10.7
 
 source-repository head
   type: git
