@@ -126,6 +126,10 @@ import Data.Foldable (toList)
 import Data.Word
 import Data.Int
 import qualified Data.Text as T
+import qualified Data.Text.Internal as T
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.Array as TA
+import Control.Monad.ST.Unsafe (unsafeSTToIO)
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, plusPtr, castPtr)
 import Foreign.Storable
@@ -300,7 +304,14 @@ encodeUtf8Builder x = textUtf8 x
 
 -- | Encode 'T.Text' as a UTF-8 byte stream.
 textUtf8 :: T.Text -> Builder
+#if MIN_VERSION_text(2,0,0)
+textUtf8 (T.Text arr off len) = withPtr len $ \ptr -> do
+    unsafeSTToIO $ TA.copyToPointer arr off ptr len
+    return $ ptr `plusPtr` len
+#else
+-- TODO there should be a more efficient implementation here
 textUtf8 x = B.encodeUtf8BuilderEscaped (P.liftFixedToBounded P.word8) x
+#endif
 {-# INLINE textUtf8 #-}
 
 --------------------
